@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Test - Seen & Reactions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #test-results {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+        }
+        .test-case {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #eee;
+            background: white;
+        }
+        .success {
+            color: green;
+        }
+        .failure {
+            color: red;
+        }
+        button {
+            padding: 5px 10px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat Feature Test</h1>
+    <p>Testing Seen Status and Reactions</p>
+    
+    <div class="test-case">
+        <h3>Test 1: Mark Message as Seen</h3>
+        <button onclick="testSeenStatus()">Run Seen Test</button>
+        <div id="seen-test-result"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>Test 2: Add Reaction to Message</h3>
+        <button onclick="testReaction('like')">Test 👍</button>
+        <button onclick="testReaction('love')">Test ❤️</button>
+        <button onclick="testReaction('laugh')">Test 😂</button>
+        <div id="reaction-test-result"></div>
+    </div>
+    
+    <div id="test-results">
+        <h3>WebSocket Events:</h3>
+        <div id="ws-events"></div>
+    </div>
+
+    <script>
+        // Configuration - replace with your actual values
+        const chatGroupId = 12;
+        const userId = 7;
+        const testMessageId = 44; // Replace with an actual message ID from your DB
+        const access_token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1NzUyODg3LCJpYXQiOjE3NTMxNjA4ODcsImp0aSI6IjA5MzNlNWZjMTdiYzQzOGY5YjdmZDFhMGJlODc5Mjg1IiwidXNlcl9pZCI6NywiZnVsbF9uYW1lIjoiU2FuZ2VldGEgRCIsImVtYWlsIjoic2FuZ2VldGFAY3Jhd2xlcnN0ZWNobm9sb2dpZXMuY29tIn0.RBsnVpIJNTsbZTGvt5aVd-RH3Yw499k9IeInSb5xc4Y'; // Replace with your actual token
+
+        // WebSocket connection for monitoring events
+        const socket = new WebSocket(`ws://127.0.0.1:8001/ws/chat/${chatGroupId}/?token=${access_token}`);
+
+        socket.onopen = function(e) {
+            logEvent("WebSocket connected");
+        };
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            logEvent(`Received: ${JSON.stringify(data)}`);
+            
+            if (data.type === 'seen_update') {
+                document.getElementById('seen-test-result').innerHTML += 
+                    `<p class="success">Seen update received for message ${data.message_id}</p>`;
+            }
+            
+            if (data.type === 'reaction_update') {
+                document.getElementById('reaction-test-result').innerHTML += 
+                    `<p class="success">Reaction update received: ${data.reactions[0].reaction}</p>`;
+            }
+        };
+
+        // Test seen status functionality
+        function testSeenStatus() {
+            const resultDiv = document.getElementById('seen-test-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            fetch(`/api/chat/mark-seen/`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${access_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message_id: testMessageId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultDiv.innerHTML += `<p class="success">API Success: ${JSON.stringify(data)}</p>`;
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<p class="failure">Error: ${error.message}</p>`;
+            });
+        }
+
+        // Test reaction functionality
+        function testReaction(reaction) {
+            const resultDiv = document.getElementById('reaction-test-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            fetch(`/api/chat/add-reaction/`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${access_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    message_id: testMessageId,
+                    reaction: reaction
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultDiv.innerHTML += `<p class="success">API Success: ${JSON.stringify(data)}</p>`;
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<p class="failure">Error: ${error.message}</p>`;
+            });
+        }
+
+        // Log WebSocket events
+        function logEvent(message) {
+            const eventsDiv = document.getElementById('ws-events');
+            const entry = document.createElement('p');
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            eventsDiv.appendChild(entry);
+            eventsDiv.scrollTop = eventsDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
