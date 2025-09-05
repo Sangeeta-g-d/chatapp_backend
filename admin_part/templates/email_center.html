@@ -231,12 +231,8 @@ document.querySelectorAll(".edit-btn").forEach(btn => {
           </div>
           <div class="mb-3">
             <label for="newLevel" class="form-label">Level</label>
-            <select class="form-select" id="newLevel" name="level" required>
-              <option value="">Select Level</option>
-              {% for level in levels %}
-                <option value="{{ level }}">{{ level }}</option>
-              {% endfor %}
-            </select>
+            <input type="text" class="form-control" id="newLevel" name="level" required>
+            
           </div>
           <hr>
           <div class="form-check">
