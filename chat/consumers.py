@@ -138,8 +138,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "message_deleted",
             "message_id": event["message_id"],
-            "delete_for_everyone": event["delete_for_everyone"],
-            "deleted_for_user_id": event.get("deleted_for_user_id"),
         }))
     @database_sync_to_async
     def save_message(self, group_id, sender_id, message):

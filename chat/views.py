@@ -97,8 +97,6 @@ class ChatHistoryAPIView(APIView):
         # Fetch messages
         messages = Message.objects.filter(
             thread=chat_group
-        ).exclude(
-            deleted_for_users=current_user
         ).prefetch_related(
             'seen_statuses',
             # 'reactions',  # 🚫 Commented out
@@ -521,22 +519,22 @@ class DeleteMessageAPIView(APIView):
 
     def post(self, request, message_id):
         user = request.user
-        delete_for_everyone = request.data.get("delete_for_everyone", False)
 
         # Fetch message
         message = get_object_or_404(Message, id=message_id)
 
-        if delete_for_everyone:
-            # Only sender can delete for everyone
-            if message.sender != user:
-                return Response({"detail": "You cannot delete this message for everyone."},
-                                status=status.HTTP_403_FORBIDDEN)
-            
-            message.is_deleted_for_everyone = True
-            message.save()
-        else:
-            # Delete for me only
-            message.deleted_for_users.add(user)
+        # Only sender can delete
+        if message.sender != user:
+            return Response(
+                {"detail": "You cannot delete this message."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        thread_id = message.thread.id
+        message_id = message.id
+
+        # Hard delete (remove from DB)
+        message.delete()
 
         # Trigger WebSocket event
         from asgiref.sync import async_to_sync
@@ -544,12 +542,10 @@ class DeleteMessageAPIView(APIView):
 
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f"chat_{message.thread.id}",
+            f"chat_{thread_id}",
             {
                 "type": "chat.message_deleted",
-                "message_id": message.id,
-                "delete_for_everyone": delete_for_everyone,
-                "deleted_for_user_id": user.id if not delete_for_everyone else None
+                "message_id": message_id,
             }
         )
 

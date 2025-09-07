@@ -45,18 +45,12 @@ class PinnedChat(models.Model):
 
     def __str__(self):
         return f"{self.user.email} pinned {self.chat_group}"
-
-# ---------- Messages ----------
 class Message(models.Model):
     thread = models.ForeignKey(ChatGroup, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(User, on_delete=models.CASCADE)
     content_encrypted = models.TextField(blank=True, null=True)
     media = models.FileField(upload_to='chat_media/', blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
-
-    # Soft delete logic
-    is_deleted_for_everyone = models.BooleanField(default=False)
-    deleted_for_users = models.ManyToManyField(User, related_name='deleted_messages', blank=True)
 
     def __str__(self):
         return f"Message from {self.sender.email} in Thread {self.thread.id}"
@@ -68,7 +62,6 @@ class Message(models.Model):
         if self.content_encrypted:
             return decrypt_text(self.content_encrypted)
         return None
-
 
 # ---------- Message Seen Status ----------
 class MessageSeenStatus(models.Model):

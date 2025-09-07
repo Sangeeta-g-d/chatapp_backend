@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'story',
     'feeds'
 ]
+from decouple import config
 ASGI_APPLICATION = 'chatapp_backend.asgi.application'
 CHANNEL_LAYERS = {
     "default": {
