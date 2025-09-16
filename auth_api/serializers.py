@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from admin_part.models import CustomUser, EmailCenter
 from .utils import generate_otp, send_otp_via_email
-from .models import EmailOTP
+from .models import EmailOTP,UserDevice
 from admin_part.models import UserProfile
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -159,3 +159,9 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         instance.save()
 
         return instance
+    
+
+class UserDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserDevice
+        fields = ["device_token"]

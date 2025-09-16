@@ -11,4 +11,5 @@ urlpatterns = [
     path('chat-ui/', chat_ui_view, name='chat-ui'),
     path('profile/', UserProfileAPIView.as_view(), name='user-profile'),
     path('update-profile/', UserProfileUpdateAPIView.as_view(), name='update-user-profile'),
+    path("register-device-token/", RegisterDeviceTokenAPIView.as_view(), name="register-device-token"),
 ]

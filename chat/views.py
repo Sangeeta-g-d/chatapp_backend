@@ -306,6 +306,13 @@ class CombinedChatOverviewAPIView(APIView):
 
                 last_message = chat.messages.order_by('-timestamp').first()
 
+                # Count unseen messages
+                unseen_count = chat.messages.exclude(
+                    seen_statuses__user=user
+                ).exclude(
+                    sender=user  # Don’t count messages sent by self
+                ).count()
+
                 one_to_one_data.append({
                     "chat_group_id": chat.id,
                     "user_id": other.id,
@@ -313,7 +320,8 @@ class CombinedChatOverviewAPIView(APIView):
                     "profile_picture": image_url,
                     "last_message": last_message.get_content() if last_message else None,
                     "last_message_time": last_message.timestamp if last_message else None,
-                    "is_pinned": chat.id in pinned_chat_ids
+                    "is_pinned": chat.id in pinned_chat_ids,
+                    "unseen_count": unseen_count
                 })
 
         # --- Group Chats ---
@@ -335,6 +343,13 @@ class CombinedChatOverviewAPIView(APIView):
                 if group.group_profile_picture else None
             )
 
+            # Count unseen messages in group
+            unseen_count = group.messages.exclude(
+                seen_statuses__user=user
+            ).exclude(
+                sender=user
+            ).count()
+
             group_data.append({
                 "chat_group_id": group.id,
                 "group_name": group.name,
@@ -342,14 +357,14 @@ class CombinedChatOverviewAPIView(APIView):
                 "last_message": last_message_text,
                 "last_message_time": last_message.timestamp if last_message else None,
                 "group_profile_picture": group_image_url,
-                "is_pinned": group.id in pinned_chat_ids
+                "is_pinned": group.id in pinned_chat_ids,
+                "unseen_count": unseen_count
             })
 
         return Response({
             "one_to_one_chats": one_to_one_data,
             "group_chats": group_data
         })
-
 
 class TogglePinChatAPIView(APIView):
     permission_classes = [IsAuthenticated]
