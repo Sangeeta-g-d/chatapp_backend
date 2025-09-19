@@ -14,10 +14,6 @@ class UploadStoryAPIView(APIView):
     def post(self, request):
         user = request.user
 
-        # Check if user has level_id and level == "1"
-        if not user.level_id or user.level_id.level != "1":
-            return Response({"detail": "You are not allowed to post a story."}, status=status.HTTP_403_FORBIDDEN)
-
         serializer = StorySerializer(data=request.data)
         if serializer.is_valid():
             story = serializer.save(user=user, expires_at=timezone.now() + timedelta(hours=24))
