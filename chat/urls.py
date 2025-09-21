@@ -17,5 +17,6 @@ urlpatterns = [
     # media
     path('upload-media/', MediaMessageUploadAPIView.as_view(), name='upload-chat-media'),
     path('delete-message/<message_id>/', DeleteMessageAPIView.as_view(), name='delete-message'),
+
   
 ]

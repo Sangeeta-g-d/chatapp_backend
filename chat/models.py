@@ -92,3 +92,4 @@ class MessageReaction(models.Model):
 
     def __str__(self):
         return f"{self.user.email} reacted {self.reaction} on message {self.message.id}"
+

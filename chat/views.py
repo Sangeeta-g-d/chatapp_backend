@@ -14,6 +14,8 @@ from .utils import send_ws_event
 from . models import *
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model
+from .firebase_utils import send_fcm_notification  # your helper function
+
 
 User = get_user_model()   # ✅ This ensures User is the actual model, not a string
 
@@ -160,7 +162,6 @@ class ChatHistoryAPIView(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
     
-
 class CreateGroupChatAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -168,16 +169,32 @@ class CreateGroupChatAPIView(APIView):
         serializer = GroupChatCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             group = serializer.save()
+
+            # 🔹 Send FCM notification to group members
+            self.notify_group_members(group)
+
             return Response({
                 "message": "Group chat created successfully.",
                 "group_id": group.id,
                 "name": group.name,
                 "members": [user.id for user in group.members.all()],
             }, status=status.HTTP_201_CREATED)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
-
+    def notify_group_members(self, group):
+        for member in group.members.all():
+            # skip the creator
+            if member == group.created_by:
+                continue
+            # send notification to all devices of this user
+            for device in member.devices.all():
+                send_fcm_notification(
+                    token=device.device_token,
+                    title="New Group Chat",
+                    body=f"You have been added to the group '{group.name}'",
+                    data={"group_id": str(group.id)}
+                )
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -565,3 +582,5 @@ class DeleteMessageAPIView(APIView):
         )
 
         return Response({"detail": "Message deleted successfully."}, status=status.HTTP_200_OK)
+
+

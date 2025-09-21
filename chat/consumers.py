@@ -91,6 +91,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'timestamp': message_obj.timestamp.isoformat(),
                     }
                 )
+                        # 🔹 Send Push Notification to opposite users
+                await self.send_push_notification(message_obj, decrypted_content)
+
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
@@ -236,3 +239,28 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
         except Exception as e:
             print(f"[Error] Saving reaction failed: {e}")
+
+        # -------------------- Push Notification --------------------
+    @database_sync_to_async
+    def send_push_notification(self, message_obj, decrypted_content):
+        try:
+            group = message_obj.thread
+            sender = message_obj.sender
+
+            # Get opposite members
+            recipients = group.members.exclude(id=sender.id)
+
+            for user in recipients:
+                for device in user.devices.all():   # 👈 matches your UserDevice model
+                    from .firebase_utils import send_fcm_notification
+                    send_fcm_notification(
+                        token=device.device_token,
+                        title=f"New message from {sender.first_name or sender.email}",
+                        body=decrypted_content[:50],  # short preview
+                        data={
+                            "chat_group_id": str(group.id),
+                            "message_id": str(message_obj.id),
+                        }
+                    )
+        except Exception as e:
+            print(f"[Error] Push notification failed: {e}")

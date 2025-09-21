@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.utils.timezone import localtime
 import pytz
-
+from auth_api.models import UserDevice
 User = get_user_model()
 
 
@@ -187,3 +187,4 @@ class MessageSerializer(serializers.ModelSerializer):
             "media_url": media_url,
             "timestamp": localtime(instance.timestamp, saudi_tz).strftime("%Y-%m-%d %H:%M:%S"),  # ✅ Saudi time
         }
+
