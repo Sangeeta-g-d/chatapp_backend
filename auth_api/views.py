@@ -229,31 +229,33 @@ class UserProfileUpdateAPIView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class RegisterDeviceTokenAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = UserDeviceSerializer(data=request.data)
-        if serializer.is_valid():
-            device_token = serializer.validated_data["device_token"]
+        device_token = request.data.get("device_token")
 
-            # Update if exists, otherwise create
-            device, created = UserDevice.objects.update_or_create(
-                device_token=device_token,
-                defaults={"user": request.user},
-            )
-
+        if not device_token:
             return Response(
-                {
-                    "success": True,
-                    "message": "Device token registered successfully",
-                    "data": {
-                        "device_token": device.device_token,
-                        "user_id": request.user.id,
-                        "is_new": created,
-                    },
-                },
-                status=status.HTTP_200_OK,
+                {"success": False, "message": "Device token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update if exists, otherwise create
+        device, created = UserDevice.objects.update_or_create(
+            device_token=device_token,
+            defaults={"user": request.user},
+        )
+
+        return Response(
+            {
+                "success": True,
+                "message": "Device token registered successfully",
+                "data": {
+                    "device_token": device.device_token,
+                    "user_id": request.user.id,
+                    "is_new": created,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )

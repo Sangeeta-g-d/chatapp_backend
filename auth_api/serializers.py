@@ -160,8 +160,10 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
         return instance
     
-
 class UserDeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserDevice
         fields = ["device_token"]
+        extra_kwargs = {
+            "device_token": {"validators": []}  # disables unique validation
+        }
