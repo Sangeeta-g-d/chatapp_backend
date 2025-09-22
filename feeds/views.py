@@ -22,12 +22,6 @@ class CreateFeedAPIView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
-        # ✅ Check user level
-        if not request.user.level_id or request.user.level_id.level != "1":
-            return Response(
-                {"error": "You are not allowed to upload feeds."},
-                status=status.HTTP_403_FORBIDDEN
-            )
 
         serializer = FeedSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
