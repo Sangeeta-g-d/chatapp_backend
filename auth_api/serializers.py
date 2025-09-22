@@ -110,20 +110,21 @@ class VerifyOTPSerializer(serializers.Serializer):
             "refresh": str(refresh),
         }
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileBasicSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['phone_number', 'bio', 'profile_picture']
 
     def validate(self, data):
-        # Convert empty strings to None (null in DB)
+        # Convert empty strings to None
         for field in ['phone_number', 'bio']:
             if field in data and data[field] == '':
                 data[field] = None
         return data
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+# Serializer for API responses including user info
+class UserProfileDetailSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.get_full_name')
     email = serializers.EmailField(source='user.email')
     profile_picture_url = serializers.SerializerMethodField()
@@ -137,7 +138,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if obj.profile_picture and hasattr(obj.profile_picture, 'url'):
             return request.build_absolute_uri(obj.profile_picture.url)
         return None
-
+    
+    
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="user.full_name", required=False)
     email = serializers.EmailField(source="user.email", read_only=True)  # just for display, not editable

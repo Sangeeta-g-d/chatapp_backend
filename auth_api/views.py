@@ -154,45 +154,46 @@ class VerifyOTPView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CreateOrUpdateUserProfileAPIView(StandardAuthAPIView, StandardResponseMixin):
+class CreateOrUpdateUserProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         try:
             profile, created = UserProfile.objects.get_or_create(user=request.user)
 
-            serializer = UserProfileSerializer(
-                instance=profile, 
-                data=request.data, 
+            serializer = UserProfileBasicSerializer(
+                instance=profile,
+                data=request.data,
                 partial=True
             )
 
             if serializer.is_valid():
                 serializer.save()
-                return self.success_response(
-                    data=serializer.data,
-                    message="Profile created successfully" if created else "Profile updated successfully",
-                    status_code=status.HTTP_201_CREATED if created else status.HTTP_200_OK
-                )
+                return Response({
+                    "success": True,
+                    "message": "Profile created successfully" if created else "Profile updated successfully",
+                    "data": serializer.data
+                }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
-            return self.error_response(
-                message="Validation failed",
-                data=serializer.errors,
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                "success": False,
+                "message": "Validation failed",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return self.error_response(
-                message="Internal server error",
-                data={"error": str(e)},
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({
+                "success": False,
+                "message": "Internal server error",
+                "error": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-class UserProfileAPIView(StandardAuthAPIView):
+class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        if user and user.is_authenticated and user.is_suspended:
+        if user and user.is_authenticated and getattr(user, 'is_suspended', False):
             return Response(
                 {
                     "status": 403,
@@ -204,14 +205,13 @@ class UserProfileAPIView(StandardAuthAPIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
-        else:
-            try:
-                profile = UserProfile.objects.get(user=request.user)
-                serializer = UserProfileSerializer(profile, context={'request': request})
-                return Response(serializer.data)
-            except UserProfile.DoesNotExist:
-                return Response({"error": "User profile not found."}, status=404)
-        
+        try:
+            profile = UserProfile.objects.get(user=user)
+            serializer = UserProfileDetailSerializer(profile, context={'request': request})
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            return Response({"error": "User profile not found."}, status=404)
+
 
 class UserProfileUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
