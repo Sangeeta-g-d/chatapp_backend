@@ -246,16 +246,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             group = message_obj.thread
             sender = message_obj.sender
-
+    
+            sender_name = sender.get_full_name()  # ✅ use method from CustomUser
+    
             # Get opposite members
             recipients = group.members.exclude(id=sender.id)
-
+    
             for user in recipients:
                 for device in user.devices.all():   # 👈 matches your UserDevice model
                     from .firebase_utils import send_fcm_notification
                     send_fcm_notification(
                         token=device.device_token,
-                        title=f"New message from {sender.first_name or sender.email}",
+                        title=f"New message from {sender_name}",
                         body=decrypted_content[:50],  # short preview
                         data={
                             "chat_group_id": str(group.id),

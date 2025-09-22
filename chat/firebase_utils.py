@@ -3,12 +3,12 @@ from firebase_admin import messaging
 def send_fcm_notification(token, title, body, data=None):
     try:
         message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body
-            ),
             token=token,
-            data=data or {}
+            data={
+                "title": title,
+                "body": body,
+                **(data or {})   # merge extra data
+            }
         )
         response = messaging.send(message)
         print(f"[FCM] Sent notification: {response}")
