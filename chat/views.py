@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db.models.functions import Coalesce
 from admin_part.models import UserProfile
 from rest_framework import status
 from django.db.models import Max
@@ -342,12 +343,16 @@ class CombinedChatOverviewAPIView(APIView):
                 })
 
         # --- Group Chats ---
-        group_chats = ChatGroup.objects.filter(
-            is_group=True,
-            members=user
-        ).annotate(
-            last_message_time=Max('messages__timestamp')
-        ).order_by('-last_message_time')
+        group_chats = (
+            ChatGroup.objects.filter(
+                is_group=True,
+                members=user
+            )
+            .annotate(
+                last_message_time=Coalesce(Max('messages__timestamp'), F('created_at'))
+            )
+            .order_by('-last_message_time')
+            )
 
         group_data = []
 
