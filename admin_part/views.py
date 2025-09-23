@@ -7,6 +7,10 @@ from .models import EmailCenter
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from feeds.models import Feed
+from feeds.models import Feed, FeedLike, FeedComment
+from story.models import StoryModel, StoryView
+from django.db.models import Count
+
 # Create your views here.
 
 def index(request):
@@ -30,12 +34,43 @@ def login_view(request):
         else:
             error_msg = "Invalid username or password."
     return render(request,'login.html', {'error_msg': error_msg})
-
-
 def admin_dashboard(request):
-    return render(request,'admin_dashboard.html')
+    # --- User statistics ---
+    total_users = CustomUser.objects.count()
+    suspended_users = CustomUser.objects.filter(level_id__is_suspended=True).count()
+    active_users = total_users - suspended_users
 
+    # --- Feed statistics ---
+    total_feeds = Feed.objects.count()
+    total_feed_likes = FeedLike.objects.count()
+    total_feed_comments = FeedComment.objects.count()
 
+    # --- Story statistics ---
+    total_stories = StoryModel.objects.count()
+    active_stories = StoryModel.objects.filter(expires_at__gt=timezone.now()).count()
+    expired_stories = total_stories - active_stories
+    total_story_views = StoryView.objects.count()
+
+    # --- Top 5 most viewed stories ---
+    top_stories = (
+        StoryModel.objects.annotate(view_count=Count("views"))
+        .order_by("-view_count")[:5]
+    )
+
+    context = {
+        "total_users": total_users,
+        "active_users": active_users,
+        "suspended_users": suspended_users,
+        "total_feeds": total_feeds,
+        "total_feed_likes": total_feed_likes,
+        "total_feed_comments": total_feed_comments,
+        "total_stories": total_stories,
+        "active_stories": active_stories,
+        "expired_stories": expired_stories,
+        "total_story_views": total_story_views,
+        "top_stories": top_stories,
+    }
+    return render(request, "admin_dashboard.html", context)
 
 def email_center(request):
     emails = EmailCenter.objects.all().order_by('id')
