@@ -7,4 +7,5 @@ urlpatterns = [
     path("comment/<int:feed_id>/", AddFeedCommentAPIView.as_view(), name="add-feed-comment"),
     path("latest-feeds/", FeedListAPIView.as_view(), name="latest-feed"),
     path("comments/<int:feed_id>/", FeedCommentsListAPIView.as_view(), name="feed-comments-list"),
+    path("feed-filter/",FeedFilterAPIView.as_view(),name="feed-filter"),
 ]

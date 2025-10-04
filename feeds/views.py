@@ -116,18 +116,18 @@ class FeedListAPIView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
+
         feeds = Feed.objects.all().order_by("-created_at")  # ✅ latest first
         serializer = FeedListSerializer(feeds, many=True, context={"request": request})
 
-        # ✅ Get logged-in user level
-        user = request.user
-        user_level = None
-        if user.level_id:   # ForeignKey to EmailCenter
-            user_level = user.level_id.level  
+        # ✅ Logged-in user details
+        user_level = user.level_id.level if user.level_id else None
+        user_role = user.role if hasattr(user, "role") else None  # ✅ Add role
 
         return Response({
-            "user_level": user_level,   # ✅ Logged in user's level at the top
-            "can_upload": user.can_upload_feed,  # ✅ Permission to upload feed
+            "user_level": user_level,      
+            "user_role": user_role,          
+            "can_upload": user.can_upload_feed,  
             "feeds": serializer.data
         })
 
@@ -138,3 +138,30 @@ class FeedCommentsListAPIView(generics.ListAPIView):
     def get_queryset(self):
         feed_id = self.kwargs["feed_id"]
         return FeedComment.objects.filter(feed_id=feed_id).order_by("-created_at")  
+
+
+class FeedFilterAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        user_role = user.role
+
+        # 🔹 Optional filter by query param (e.g., ?role=Employee)
+        role_filter = request.query_params.get("role")
+
+        feeds = Feed.objects.all().order_by("-created_at")
+
+        if role_filter:
+            # Client explicitly requested a role filter
+            feeds = feeds.filter(user__role=role_filter)
+        else:
+            # Default: filter by logged-in user role
+            feeds = feeds.filter(user__role=user_role)
+
+        serializer = FeedListSerializer(feeds, many=True, context={"request": request})
+
+        return Response({
+            "applied_role": role_filter if role_filter else user_role,  # ✅ Show what role was used
+            "feeds": serializer.data
+        })

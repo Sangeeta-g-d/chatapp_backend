@@ -241,28 +241,39 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"[Error] Saving reaction failed: {e}")
 
         # -------------------- Push Notification --------------------
-    @database_sync_to_async
-    def send_push_notification(self, message_obj, decrypted_content):
+    # Remove the decorator and make it async
+    async def send_push_notification(self, message_obj, decrypted_content):
         try:
             group = message_obj.thread
             sender = message_obj.sender
-    
-            sender_name = sender.get_full_name()  # ✅ use method from CustomUser
+            sender_name = sender.get_full_name()
     
             # Get opposite members
             recipients = group.members.exclude(id=sender.id)
     
             for user in recipients:
-                for device in user.devices.all():   # 👈 matches your UserDevice model
+                # Use database_sync_to_async for the database query
+                devices = await self.get_user_devices(user)
+                for device in devices:
+                    # Import inside function to avoid circular imports
                     from .firebase_utils import send_fcm_notification
-                    send_fcm_notification(
-                        token=device.device_token,
-                        title=f"New message from {sender_name}",
-                        body=decrypted_content[:50],  # short preview
-                        data={
+                    
+                    # Run the synchronous FCM function in thread pool
+                    import asyncio
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, 
+                        send_fcm_notification,
+                        device.device_token,
+                        f"New message from {sender_name}",
+                        decrypted_content[:50],
+                        {
                             "chat_group_id": str(group.id),
                             "message_id": str(message_obj.id),
                         }
                     )
         except Exception as e:
             print(f"[Error] Push notification failed: {e}")
+    
+    @database_sync_to_async
+    def get_user_devices(self, user):
+        return list(user.devices.all())
