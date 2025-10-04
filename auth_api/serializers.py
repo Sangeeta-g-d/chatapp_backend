@@ -128,17 +128,25 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.get_full_name')
     email = serializers.EmailField(source='user.email')
     profile_picture_url = serializers.SerializerMethodField()
+    employee_id = serializers.CharField(source='user.level_id.employee_id', read_only=True)
 
     class Meta:
         model = UserProfile
-        fields = ['full_name', 'email', 'phone_number', 'bio', 'profile_picture_url']
+        fields = [
+            'full_name',
+            'email',
+            'employee_id',  # ✅ added
+            'phone_number',
+            'bio',
+            'profile_picture_url',
+        ]
 
     def get_profile_picture_url(self, obj):
         request = self.context.get('request')
         if obj.profile_picture and hasattr(obj.profile_picture, 'url'):
             return request.build_absolute_uri(obj.profile_picture.url)
         return None
-    
+
     
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="user.full_name", required=False)
