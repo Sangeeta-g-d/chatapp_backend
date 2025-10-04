@@ -389,6 +389,8 @@ class CombinedChatOverviewAPIView(APIView):
             "group_chats": group_data
         })
 
+MAX_PINNED_CHATS = 4 
+
 class TogglePinChatAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -399,12 +401,23 @@ class TogglePinChatAPIView(APIView):
         except ChatGroup.DoesNotExist:
             return Response({"error": "Chat group not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        pin, created = PinnedChat.objects.get_or_create(user=user, chat_group=chat_group)
-        if not created:
-            pin.delete()
+        # Check if this chat is already pinned
+        pin_exists = PinnedChat.objects.filter(user=user, chat_group=chat_group).first()
+        if pin_exists:
+            pin_exists.delete()
             return Response({"message": "Chat unpinned"})
-        return Response({"message": "Chat pinned"})
 
+        # Count current pinned chats
+        pinned_count = PinnedChat.objects.filter(user=user).count()
+        if pinned_count >= MAX_PINNED_CHATS:
+            return Response(
+                {"error": f"You can pin a maximum of {MAX_PINNED_CHATS} chats."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create new pin
+        PinnedChat.objects.create(user=user, chat_group=chat_group)
+        return Response({"message": "Chat pinned"})
 
 class AddGroupMembersAPIView(APIView):
     permission_classes = [IsAuthenticated]
