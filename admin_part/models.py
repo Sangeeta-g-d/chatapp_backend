@@ -48,8 +48,9 @@ class EmailCenter(models.Model):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True,blank=True, null=True)
     full_name = models.CharField(max_length=255, blank=True)
+    phone_number = models.CharField(max_length=15, unique=True, blank=True, null=True)  # ✅ Added here
     role = models.CharField(max_length=30)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -97,7 +98,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 class UserProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    phone_number = models.CharField(max_length=15, blank=True,unique=True)
     bio = models.TextField(blank=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
 

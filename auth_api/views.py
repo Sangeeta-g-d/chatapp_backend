@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from admin_part.models import CustomUser
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.permissions import IsAuthenticated
@@ -259,3 +260,42 @@ class RegisterDeviceTokenAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+
+# phone OTP
+# -------- Send OTP -------- #
+class SendPhoneOTPAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = SendPhoneOTPSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'status': 'success',
+                'message': 'OTP sent successfully.'
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# -------- Verify OTP (Login) -------- #
+class VerifyPhoneOTPAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = VerifyPhoneOTPSerializer(data=request.data)
+        if serializer.is_valid():
+            result = serializer.save()
+            user = result['user']
+
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'status': 'success',
+                'message': result['message'],
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh),
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'phone_number': user.phone_number,
+                    'full_name': user.full_name
+                }
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -188,6 +188,13 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
 
 import os
 
+TAQNYAT_API_TOKEN = os.getenv("TAQNYAT_API_TOKEN")
+TAQNYAT_SENDER_NAME = os.getenv("TAQNYAT_SENDER_NAME")
+TAQNYAT_API_URL = os.getenv("TAQNYAT_API_URL", "https://api.taqnyat.sa/v1/messages")
+
+
+import os
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

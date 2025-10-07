@@ -3,27 +3,41 @@ from admin_part.models import CustomUser, EmailCenter
 from .utils import generate_otp, send_otp_via_email
 from .models import EmailOTP,UserDevice
 from admin_part.models import UserProfile
+from .models import *
+from .utils import send_otp
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
+    phone_number = serializers.CharField(
+        max_length=15,
+    )
 
     class Meta:
         model = CustomUser
-        fields = ['full_name', 'email', 'dob', 'password', 'confirm_password']
+        fields = ['full_name', 'email', 'dob', 'phone_number', 'password', 'confirm_password']
         extra_kwargs = {
             'password': {'write_only': True},
         }
 
+    # Validate authorized email
     def validate_email(self, value):
         if not EmailCenter.objects.filter(email=value).exists():
             raise serializers.ValidationError("This email is not authorized for registration.")
         return value
 
+    # Validate unique phone number
+    def validate_phone_number(self, value):
+        if CustomUser.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("This phone number is already registered.")
+        return value
+
+    # Validate password confirmation
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
         return attrs
 
+    # Create user
     def create(self, validated_data):
         validated_data.pop('confirm_password')
         email = validated_data['email']
@@ -177,3 +191,68 @@ class UserDeviceSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "device_token": {"validators": []}  # disables unique validation
         }
+
+
+# phone OTP
+# -------- Send OTP -------- #
+class SendPhoneOTPSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+
+    def validate_phone_number(self, value):
+        if not value or not value.replace('+', '').isdigit():
+            raise serializers.ValidationError("Invalid phone number format.")
+
+        # Check if user exists
+        if not CustomUser.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("User not found. Please register first.")
+        return value
+
+    def create(self, validated_data):
+        phone_number = validated_data['phone_number']
+        otp = generate_otp()
+
+        PhoneOTP.objects.update_or_create(
+            phone_number=phone_number,
+            defaults={'otp': otp, 'is_verified': False, 'created_at': timezone.now()}
+        )
+
+        send_otp(phone_number, otp)
+        return {'phone_number': phone_number, 'otp_sent': True}
+
+
+# -------- Verify OTP -------- #
+class VerifyPhoneOTPSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, data):
+        phone_number = data.get('phone_number')
+        otp = data.get('otp')
+
+        # Verify existing user
+        try:
+            user = CustomUser.objects.get(phone_number=phone_number)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("User not found. Please register first.")
+
+        # Verify OTP record
+        try:
+            otp_record = PhoneOTP.objects.get(phone_number=phone_number, otp=otp)
+        except PhoneOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP or phone number.")
+
+        if otp_record.is_expired():
+            raise serializers.ValidationError("OTP has expired.")
+
+        data['user'] = user
+        data['otp_record'] = otp_record
+        return data
+
+    def create(self, validated_data):
+        otp_record = validated_data['otp_record']
+        user = validated_data['user']
+
+        otp_record.is_verified = True
+        otp_record.save()
+
+        return {'user': user, 'message': 'OTP verified successfully'}

@@ -12,4 +12,9 @@ urlpatterns = [
     path('profile/', UserProfileAPIView.as_view(), name='user-profile'),
     path('update-profile/', UserProfileUpdateAPIView.as_view(), name='update-user-profile'),
     path("register-device-token/", RegisterDeviceTokenAPIView.as_view(), name="register-device-token"),
+
+
+    # phone OTP
+    path('send-phone-otp/', SendPhoneOTPAPIView.as_view(), name='send-phone-otp'),
+    path('verify-phone-otp/', VerifyPhoneOTPAPIView.as_view(), name='verify-phone-otp'),
 ]

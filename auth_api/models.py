@@ -15,6 +15,18 @@ class EmailOTP(models.Model):
     def __str__(self):
         return f"{self.email} - {self.otp}"
     
+class PhoneOTP(models.Model):
+    phone_number = models.CharField(max_length=15)
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + datetime.timedelta(minutes=10)
+
+    def __str__(self):
+        return f"{self.phone_number} - {self.otp}"
+
 
 class UserDevice(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="devices")
