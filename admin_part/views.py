@@ -71,16 +71,15 @@ def admin_dashboard(request):
         "top_stories": top_stories,
     }
     return render(request, "admin_dashboard.html", context)
-
 def email_center(request):
     emails = EmailCenter.objects.all().order_by('id')
     levels = EmailCenter.objects.values_list("level", flat=True).distinct()
 
-    success = request.GET.get("success")  # ✅ read from query params
+    toast = None  # will hold toast info
 
     if request.method == "POST":
         if "email_id" in request.POST:  
-            # ✅ Update existing email
+            # Update existing email
             email_id = request.POST.get("email_id")
             email_obj = get_object_or_404(EmailCenter, id=email_id)
 
@@ -97,34 +96,54 @@ def email_center(request):
             )
 
             email_obj.save()
-            return redirect(f"{request.path}?success=updated")  # ✅ redirect
+            toast = {"text": "Email permissions updated successfully!", "type": "success"}
+
+        elif "delete_id" in request.POST:
+            # Delete email
+            email_obj = get_object_or_404(EmailCenter, id=request.POST.get("delete_id"))
+            email_obj.delete()
+            toast = {"text": f"Email '{email_obj.email}' deleted successfully!", "type": "success"}
 
         else:  
-            # ✅ Add new email
-            EmailCenter.objects.create(
-                email=request.POST.get("email"),
-                employee_id=request.POST.get("employee_id"),
-                level=request.POST.get("level"),
-                can_add_story=bool(request.POST.get("can_add_story")),
-                can_upload_feed=bool(request.POST.get("can_upload_feed")),
-                can_share_media=bool(request.POST.get("can_share_media")),
-                can_download_media=bool(request.POST.get("can_download_media")),
-                is_suspended=bool(request.POST.get("is_suspended")),
-                suspension_reason=request.POST.get("suspension_reason") or "",
-                suspension_until=(
-                    timezone.datetime.fromisoformat(request.POST.get("suspension_until"))
-                    if request.POST.get("suspension_until")
-                    else None
-                ),
-            )
-            return redirect(f"{request.path}?success=added")  # ✅ redirect
+            # Add new email
+            email = request.POST.get("email")
+            if EmailCenter.objects.filter(email=email).exists():
+                toast = {"text": f"The email '{email}' already exists!", "type": "error"}
+            else:
+                try:
+                    EmailCenter.objects.create(
+                        email=email,
+                        employee_id=request.POST.get("employee_id"),
+                        level=request.POST.get("level"),
+                        phone_number=request.POST.get("phone_number"),
+                        can_add_story=bool(request.POST.get("can_add_story")),
+                        can_upload_feed=bool(request.POST.get("can_upload_feed")),
+                        can_share_media=bool(request.POST.get("can_share_media")),
+                        can_download_media=bool(request.POST.get("can_download_media")),
+                        is_suspended=bool(request.POST.get("is_suspended")),
+                        suspension_reason=request.POST.get("suspension_reason") or "",
+                        suspension_until=(
+                            timezone.datetime.fromisoformat(request.POST.get("suspension_until"))
+                            if request.POST.get("suspension_until")
+                            else None
+                        ),
+                    )
+                    toast = {"text": "New email added successfully!", "type": "success"}
+                except IntegrityError:
+                    toast = {"text": f"The email '{email}' already exists!", "type": "error"}
+
+        # After any action, reload the page with toast info
+        return render(
+            request,
+            "email_center.html",
+            {"emails": EmailCenter.objects.all().order_by('id'), "levels": levels, "toast": toast},
+        )
 
     return render(
         request,
         "email_center.html",
-        {"emails": emails, "levels": levels, "success": success},
+        {"emails": emails, "levels": levels},
     )
-
 
 def feed_view(request):
     level_filter = request.GET.get("level", None)  # ✅ from query params

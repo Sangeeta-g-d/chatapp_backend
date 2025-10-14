@@ -31,6 +31,7 @@ class EmailCenter(models.Model):
     email = models.EmailField(unique=True)
     employee_id = models.CharField(max_length=50)
     level = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=15, null=True, blank=True)
     
     # Restrictions
     can_add_story = models.BooleanField(default=False)

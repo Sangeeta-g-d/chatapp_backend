@@ -9,4 +9,6 @@ urlpatterns = [
     path('feed/',views.feed_view,name="feed"),
     path('logout/',views.logout_view,name="logout"),
     path("feeds/delete/<int:feed_id>/", views.delete_feed, name="delete_feed"),
+    # path("email_center/delete/<int:email_id>/", views.delete_email, name="delete_email"),
+
 ]

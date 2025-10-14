@@ -5,12 +5,9 @@ from .models import EmailOTP,UserDevice
 from admin_part.models import UserProfile
 from .models import *
 from .utils import send_otp
-
 class UserRegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
-    phone_number = serializers.CharField(
-        max_length=15,
-    )
+    phone_number = serializers.CharField(max_length=15)
 
     class Meta:
         model = CustomUser
@@ -19,22 +16,45 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'password': {'write_only': True},
         }
 
-    # Validate authorized email
-    def validate_email(self, value):
-        if not EmailCenter.objects.filter(email=value).exists():
-            raise serializers.ValidationError("This email is not authorized for registration.")
-        return value
-
-    # Validate unique phone number
-    def validate_phone_number(self, value):
-        if CustomUser.objects.filter(phone_number=value).exists():
-            raise serializers.ValidationError("This phone number is already registered.")
-        return value
-
-    # Validate password confirmation
+    # Validate authorized email and phone
     def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        email = attrs.get('email')
+        phone_number = attrs.get('phone_number')
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
+
+        # 1️⃣ Check email authorization
+        try:
+            email_center = EmailCenter.objects.get(email=email)
+        except EmailCenter.DoesNotExist:
+            raise serializers.ValidationError({
+                "email": "This email is not authorized for registration."
+            })
+
+        # 2️⃣ Check if phone number exists in EmailCenter
+        if email_center.employee_id and email_center.phone_number != phone_number:
+            raise serializers.ValidationError({
+                "phone_number": "This phone number does not match the authorized record."
+            })
+
+        # OR if you just want to ensure phone exists in any EmailCenter record:
+        # if not EmailCenter.objects.filter(phone_number=phone_number).exists():
+        #     raise serializers.ValidationError({
+        #         "phone_number": "This phone number is not authorized for registration."
+        #     })
+
+        # 3️⃣ Validate unique phone number in CustomUser
+        if CustomUser.objects.filter(phone_number=phone_number).exists():
+            raise serializers.ValidationError({
+                "phone_number": "This phone number is already registered."
+            })
+
+        # 4️⃣ Password match check
+        if password != confirm_password:
+            raise serializers.ValidationError({
+                "confirm_password": "Passwords do not match."
+            })
+
         return attrs
 
     # Create user
@@ -45,6 +65,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data['level_id'] = email_center
         user = CustomUser.objects.create_user(**validated_data)
         return user
+
 
 class SendOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
