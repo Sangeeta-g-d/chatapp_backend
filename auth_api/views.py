@@ -52,9 +52,9 @@ class UserRegistrationView(APIView):
                     "user_id": user.id,
                     "full_name": user.full_name,
                     "email": user.email,
-                    "phone_number": getattr(user, "phone_number", None),
-                    "employee_id": getattr(user, "employee_id", None),
-                    "level": getattr(user, "level", None),
+                    "phone_number": user.phone_number,  # ✅ included here
+                    "level": getattr(user.level_id, "level", None),
+                    "employee_id": getattr(user.level_id, "employee_id", None)
                 }
             }, status=status.HTTP_201_CREATED)
 
@@ -63,6 +63,7 @@ class UserRegistrationView(APIView):
             "message": "Validation error",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -91,7 +92,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return data
     
-    
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -214,7 +215,8 @@ class CreateOrUpdateUserProfileAPIView(APIView):
                 "message": "Internal server error",
                 "error": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
+        
 class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 

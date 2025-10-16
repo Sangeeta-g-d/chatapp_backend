@@ -16,14 +16,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'password': {'write_only': True},
         }
 
-    # Validate authorized email and phone
     def validate(self, attrs):
         email = attrs.get('email')
         phone_number = attrs.get('phone_number')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
 
-        # 1️⃣ Check email authorization
+        # ✅ 1. Check if email is authorized
         try:
             email_center = EmailCenter.objects.get(email=email)
         except EmailCenter.DoesNotExist:
@@ -31,25 +30,19 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 "email": "This email is not authorized for registration."
             })
 
-        # 2️⃣ Check if phone number exists in EmailCenter
+        # ✅ 2. Verify phone number matches authorized record
         if email_center.employee_id and email_center.phone_number != phone_number:
             raise serializers.ValidationError({
                 "phone_number": "This phone number does not match the authorized record."
             })
 
-        # OR if you just want to ensure phone exists in any EmailCenter record:
-        # if not EmailCenter.objects.filter(phone_number=phone_number).exists():
-        #     raise serializers.ValidationError({
-        #         "phone_number": "This phone number is not authorized for registration."
-        #     })
-
-        # 3️⃣ Validate unique phone number in CustomUser
+        # ✅ 3. Ensure phone number is unique
         if CustomUser.objects.filter(phone_number=phone_number).exists():
             raise serializers.ValidationError({
                 "phone_number": "This phone number is already registered."
             })
 
-        # 4️⃣ Password match check
+        # ✅ 4. Confirm password match
         if password != confirm_password:
             raise serializers.ValidationError({
                 "confirm_password": "Passwords do not match."
@@ -57,13 +50,17 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    # Create user
     def create(self, validated_data):
         validated_data.pop('confirm_password')
         email = validated_data['email']
         email_center = EmailCenter.objects.get(email=email)
+
         validated_data['level_id'] = email_center
+        # ✅ Include phone_number explicitly in create_user
+        phone_number = validated_data.get('phone_number')
         user = CustomUser.objects.create_user(**validated_data)
+        user.phone_number = phone_number
+        user.save()
         return user
 
 
@@ -148,30 +145,30 @@ class VerifyOTPSerializer(serializers.Serializer):
 class UserProfileBasicSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['phone_number', 'bio', 'profile_picture']
+        fields = ['bio', 'profile_picture']  # Removed phone_number
 
     def validate(self, data):
         # Convert empty strings to None
-        for field in ['phone_number', 'bio']:
+        for field in ['bio']:
             if field in data and data[field] == '':
                 data[field] = None
         return data
 
-
 # Serializer for API responses including user info
 class UserProfileDetailSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(source='user.get_full_name')
-    email = serializers.EmailField(source='user.email')
-    profile_picture_url = serializers.SerializerMethodField()
+    full_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    phone_number = serializers.CharField(source='user.phone_number', read_only=True)  # fetch from CustomUser
     employee_id = serializers.CharField(source='user.level_id.employee_id', read_only=True)
+    profile_picture_url = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
         fields = [
             'full_name',
             'email',
-            'employee_id',  # ✅ added
-            'phone_number',
+            'employee_id',
+            'phone_number',  # ✅ now fetched from CustomUser
             'bio',
             'profile_picture_url',
         ]
@@ -182,10 +179,10 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.profile_picture.url)
         return None
 
-    
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="user.full_name", required=False)
     email = serializers.EmailField(source="user.email", read_only=True)  # just for display, not editable
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)  # display only
 
     class Meta:
         model = UserProfile
@@ -204,6 +201,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         instance.save()
 
         return instance
+
     
 class UserDeviceSerializer(serializers.ModelSerializer):
     class Meta:
