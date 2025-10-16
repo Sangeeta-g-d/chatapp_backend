@@ -132,8 +132,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 "user_id": user.id,
                 "full_name": user.full_name,
                 "email": user.email,
-                "level": getattr(user, "level", None),
-                "employee_id": getattr(user, "employee_id", None)
+                "level": user.level_id.level if user.level_id else None,
+                "employee_id": user.level_id.employee_id if user.level_id else None
             }
         }, status=status.HTTP_200_OK)
     
@@ -216,7 +216,7 @@ class CreateOrUpdateUserProfileAPIView(APIView):
                 "error": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        
+
 class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
