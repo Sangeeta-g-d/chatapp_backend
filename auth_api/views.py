@@ -40,20 +40,29 @@ class StandardAuthAPIView(APIView):
             )
         return super().dispatch(request, *args, **kwargs)
 
-class UserRegistrationView(StandardResponseMixin, APIView):
+class UserRegistrationView(APIView):
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return self.success_response(
-                message="User registered successfully",
-                status_code=status.HTTP_201_CREATED
-            )
-        return self.error_response(
-            message="Validation error",
-            data=serializer.errors,
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+            user = serializer.save()
+            return Response({
+                "status": status.HTTP_201_CREATED,
+                "message": "User registered successfully",
+                "data": {
+                    "user_id": user.id,
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "phone_number": getattr(user, "phone_number", None),
+                    "employee_id": getattr(user, "employee_id", None),
+                    "level": getattr(user, "level", None),
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        return Response({
+            "status": status.HTTP_400_BAD_REQUEST,
+            "message": "Validation error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -82,7 +91,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return data
     
-class CustomTokenObtainPairView(StandardResponseMixin, TokenObtainPairView):
+    
+class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
@@ -90,27 +100,43 @@ class CustomTokenObtainPairView(StandardResponseMixin, TokenObtainPairView):
 
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception as e:
-            return self.error_response(message="Invalid credentials", status_code=status.HTTP_401_UNAUTHORIZED)
+        except Exception:
+            return Response({
+                "status": 401,
+                "message": "Invalid credentials",
+                "data": None
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
-        user = serializer.user  # DRF-SimpleJWT sets this on the serializer
+        user = serializer.user
 
-        # ✅ Suspension check here
+        # ✅ Check if suspended
         if hasattr(user, "is_suspended") and user.is_suspended:
-            return self.error_response(
-                message="Your account is suspended. Please contact admin.",
-                data={
-                    "suspension_reason": user.level_id.suspension_reason if user.level_id else None,
-                    "suspension_until": user.level_id.suspension_until if user.level_id else None,
-                },
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
+            return Response({
+                "status": 403,
+                "message": "Your account is suspended. Please contact admin.",
+                "data": {
+                    "suspension_reason": getattr(user.level_id, "suspension_reason", None),
+                    "suspension_until": getattr(user.level_id, "suspension_until", None)
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
 
-        return self.success_response(
-            data=serializer.validated_data,
-            message="Login successful",
-            status_code=status.HTTP_200_OK
-        )
+        # ✅ Successful login
+        data = serializer.validated_data
+        return Response({
+            "status": 200,
+            "message": "Login successful",
+            "data": {
+                "refresh": data.get("refresh"),
+                "access": data.get("access"),
+                "user_id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "level": getattr(user, "level", None),
+                "employee_id": getattr(user, "employee_id", None)
+            }
+        }, status=status.HTTP_200_OK)
+    
+
 
 class SendOTPView(APIView):
     def post(self, request):
@@ -277,7 +303,6 @@ class SendPhoneOTPAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# -------- Verify OTP (Login) -------- #
 class VerifyPhoneOTPAPIView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = VerifyPhoneOTPSerializer(data=request.data)
@@ -286,16 +311,23 @@ class VerifyPhoneOTPAPIView(APIView):
             user = result['user']
 
             refresh = RefreshToken.for_user(user)
+
             return Response({
-                'status': 'success',
-                'message': result['message'],
-                'access_token': str(refresh.access_token),
-                'refresh_token': str(refresh),
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'phone_number': user.phone_number,
-                    'full_name': user.full_name
+                "status": status.HTTP_200_OK,
+                "message": result.get("message", "Login successful"),
+                "data": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "user_id": user.id,
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "level": getattr(user, "level", None),
+                    "employee_id": getattr(user, "employee_id", None)
                 }
             }, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "status": status.HTTP_400_BAD_REQUEST,
+            "message": "Invalid OTP",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)

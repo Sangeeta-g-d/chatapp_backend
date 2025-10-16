@@ -2,30 +2,33 @@ from rest_framework import serializers
 from .models import *
 import pytz
 
+
 class FeedSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feed
-        fields = ["id", "feed_type", "text", "file", "created_at"]
+        fields = ["id", "feed_type", "text", "file", "link", "created_at"]  # ✅ added link
         read_only_fields = ["id", "created_at", "feed_type"]
 
     def create(self, validated_data):
         request = self.context.get("request")
         text = validated_data.get("text")
         file = validated_data.get("file")
+        link = validated_data.get("link")
 
-        # ✅ Decide feed type automatically
+        # ✅ Determine feed type automatically
         if text and file:
             validated_data["feed_type"] = "both"
         elif text:
             validated_data["feed_type"] = "text"
         elif file:
             validated_data["feed_type"] = "file"
+        elif link:
+            validated_data["feed_type"] = "text"  # treat link as text-type feed
         else:
-            raise serializers.ValidationError("Feed must have either text, file, or both.")
+            raise serializers.ValidationError("Feed must have text, file, or link.")
 
         validated_data["user"] = request.user
         return super().create(validated_data)
-
 
 class FeedLikeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -59,6 +62,7 @@ class FeedListSerializer(serializers.ModelSerializer):
             "feed_type",
             "text",
             "file",
+            "link",  # ✅ added here
             "created_at",
             "like_count",
             "comment_count",
@@ -66,9 +70,8 @@ class FeedListSerializer(serializers.ModelSerializer):
         ]
 
     def get_created_at(self, obj):
-        saudi_tz = pytz.timezone("Asia/Riyadh")  # ✅ Saudi timezone
+        saudi_tz = pytz.timezone("Asia/Riyadh")
         local_time = timezone.localtime(obj.created_at, saudi_tz)
-        # ✅ ISO 8601 format with microseconds + Z (Zulu/UTC-like suffix)
         return local_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     def get_profile_picture(self, obj):
@@ -83,7 +86,7 @@ class FeedListSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             return obj.likes.filter(user=user).exists()
         return False
-
+    
 class FeedCommentsSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.full_name", read_only=True)  # optional extra field
     user_email = serializers.CharField(source="user.email", read_only=True)
