@@ -207,22 +207,11 @@
          class="form-control" 
          id="newPhoneNumber" 
          name="phone_number"
-         maxlength="10"
-         pattern="^[0-9]{10}$"
-         placeholder="Enter 10-digit phone number" 
+         placeholder="Enter valid phone number" 
          required>
-  <div class="invalid-feedback">
-    Please enter a valid 10-digit phone number (digits only).
-  </div>
+ 
 </div>
 
-<script>
-  // ✅ Allow only digits in phone number field
-  document.getElementById('newPhoneNumber').addEventListener('input', function (e) {
-    // Remove any non-digit character
-    this.value = this.value.replace(/\D/g, '');
-  });
-</script>
 
 
                     <!-- ✅ Employee ID -->
