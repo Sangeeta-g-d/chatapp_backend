@@ -5,6 +5,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from .models import EmailCenter
 from django.http import JsonResponse
+from django.db import IntegrityError
+
 from django.views.decorators.http import require_POST
 from feeds.models import Feed
 from feeds.models import Feed, FeedLike, FeedComment
