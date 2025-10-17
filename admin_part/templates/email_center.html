@@ -63,8 +63,20 @@
                         {% for e in emails %}
                         <tr>
                           
-                            <td data-label="Email">{{ e.email }}</td>
-                            <td data-label="Phone Number">{{ e.phone_number }}</td>
+                            <td data-label="Email">
+    {% if e.email %}
+        {{ e.email }}
+    {% else %}
+        <span class="text-muted">None</span>
+    {% endif %}
+</td>
+                           <td data-label="Phone Number">
+    {% if e.phone_number %}
+        {{ e.phone_number }}
+    {% else %}
+        <span class="text-muted">None</span>
+    {% endif %}
+</td>
                             <td data-label="Employee ID">{{ e.employee_id }}</td>
                             <td data-label="Level">{{ e.level }}</td>
                             <td class="text-center" data-label="Can Add Story">{% if e.can_add_story %}✔{% else %}✖{% endif %}</td>
@@ -196,7 +208,7 @@
                     <div class="mb-3">
                         <label for="newEmail" class="form-label">Email</label>
                         <input type="email" class="form-control" id="newEmail" name="email" 
-                               placeholder="Enter valid email" required>
+                               placeholder="Enter valid email (optional)" required>
                         <div class="invalid-feedback">Please enter a valid email address.</div>
                     </div>
 
@@ -207,7 +219,7 @@
          class="form-control" 
          id="newPhoneNumber" 
          name="phone_number"
-         placeholder="Enter valid phone number" 
+         placeholder="Enter valid phone number (optional)" 
          required>
  
 </div>
@@ -290,7 +302,18 @@
     </div>
 </div>
 
+<script>
+  document.getElementById('addEmailForm').addEventListener('submit', function(e) {
+    const email = document.getElementById('newEmail').value.trim();
+    const phone = document.getElementById('newPhoneNumber').value.trim();
 
+    if (!email && !phone) {
+      e.preventDefault();
+      alert('Please provide at least an email or phone number.');
+      return false;
+    }
+  });
+</script>
 <!-- ✅ FontAwesome Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 {% if toast %}

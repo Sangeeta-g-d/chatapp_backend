@@ -5,9 +5,13 @@ from .models import EmailOTP,UserDevice
 from admin_part.models import UserProfile
 from .models import *
 from .utils import send_otp
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+
 class UserRegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
-    phone_number = serializers.CharField(max_length=15)
+    phone_number = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     class Meta:
         model = CustomUser
@@ -22,46 +26,109 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
 
-        # ✅ 1. Check if email is authorized
-        try:
-            email_center = EmailCenter.objects.get(email=email)
-        except EmailCenter.DoesNotExist:
+        # ✅ 1. Ensure at least one (email or phone) is provided
+        if not email and not phone_number:
             raise serializers.ValidationError({
-                "email": "This email is not authorized for registration."
+                "detail": "Either email or phone number must be provided."
             })
 
-        # ✅ 2. Verify phone number matches authorized record
-        if email_center.employee_id and email_center.phone_number != phone_number:
+        email_center = None
+
+        # ✅ 2. Try to find authorized record in EmailCenter
+        if email:
+            email_center = EmailCenter.objects.filter(email=email).first()
+        if not email_center and phone_number:
+            email_center = EmailCenter.objects.filter(phone_number=phone_number).first()
+
+        if not email_center:
             raise serializers.ValidationError({
-                "phone_number": "This phone number does not match the authorized record."
+                "detail": "Neither email nor phone number is authorized for registration."
             })
 
-        # ✅ 3. Ensure phone number is unique
-        if CustomUser.objects.filter(phone_number=phone_number).exists():
+        # ✅ 3. If both provided, check they belong to same record (optional)
+        if email and phone_number and (
+            email_center.email != email or email_center.phone_number != phone_number
+        ):
+            raise serializers.ValidationError({
+                "detail": "Email and phone number do not match the same authorized record."
+            })
+
+        # ✅ 4. Check phone number uniqueness
+        if phone_number and CustomUser.objects.filter(phone_number=phone_number).exists():
             raise serializers.ValidationError({
                 "phone_number": "This phone number is already registered."
             })
 
-        # ✅ 4. Confirm password match
+        # ✅ 5. Check email uniqueness
+        if email and CustomUser.objects.filter(email=email).exists():
+            raise serializers.ValidationError({
+                "email": "This email is already registered."
+            })
+
+        # ✅ 6. Confirm password match
         if password != confirm_password:
             raise serializers.ValidationError({
                 "confirm_password": "Passwords do not match."
             })
 
+        # Store matched EmailCenter in serializer for later use
+        attrs['email_center'] = email_center
+
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
-        email = validated_data['email']
-        email_center = EmailCenter.objects.get(email=email)
-
+        email_center = validated_data.pop('email_center', None)
         validated_data['level_id'] = email_center
-        # ✅ Include phone_number explicitly in create_user
-        phone_number = validated_data.get('phone_number')
+
         user = CustomUser.objects.create_user(**validated_data)
-        user.phone_number = phone_number
-        user.save()
         return user
+
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    phone_number = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        username = attrs.get('username')  # optional alias
+        email = attrs.get('email')
+        phone_number = attrs.get('phone_number')
+        password = attrs.get('password')
+
+        # ✅ Allow flexible login: username/email/phone all acceptable
+        login_identifier = email or phone_number or username
+
+        if not login_identifier or not password:
+            raise serializers.ValidationError("Either email or phone number and password are required.")
+
+        # ✅ Try to find the user by email or phone number
+        user = None
+        if '@' in str(login_identifier):
+            user = CustomUser.objects.filter(email__iexact=login_identifier).first()
+        else:
+            user = CustomUser.objects.filter(phone_number=login_identifier).first()
+
+        if not user:
+            raise serializers.ValidationError("Invalid credentials.")
+
+        if not user.check_password(password):
+            raise serializers.ValidationError("Invalid credentials.")
+
+        if not user.is_active:
+            raise serializers.ValidationError("This account is inactive.")
+
+        # ✅ Set user in serializer for view access
+        self.user = user
+
+        # ✅ Generate tokens
+        data = super().get_token(user)
+        return {
+            'refresh': str(data),
+            'access': str(data.access_token)
+        }
 
 
 class SendOTPSerializer(serializers.Serializer):

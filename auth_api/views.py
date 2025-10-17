@@ -92,7 +92,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return data
     
-
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -101,7 +100,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception:
+        except Exception as e:
             return Response({
                 "status": 401,
                 "message": "Invalid credentials",
@@ -132,6 +131,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 "user_id": user.id,
                 "full_name": user.full_name,
                 "email": user.email,
+                "phone_number": user.phone_number,
                 "level": user.level_id.level if user.level_id else None,
                 "employee_id": user.level_id.employee_id if user.level_id else None
             }

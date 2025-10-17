@@ -73,6 +73,7 @@ def admin_dashboard(request):
         "top_stories": top_stories,
     }
     return render(request, "admin_dashboard.html", context)
+
 def email_center(request):
     emails = EmailCenter.objects.all().order_by('id')
     levels = EmailCenter.objects.values_list("level", flat=True).distinct()
