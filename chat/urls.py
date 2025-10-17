@@ -18,5 +18,15 @@ urlpatterns = [
     path('upload-media/', MediaMessageUploadAPIView.as_view(), name='upload-chat-media'),
     path('delete-message/<message_id>/', DeleteMessageAPIView.as_view(), name='delete-message'),
 
+
+
+    # remove user
+    path("remove-user/<int:group_id>/", RemoveUserFromGroupAPIView.as_view(), name="remove_user_from_group"),
+
+    # { body for remove user
+    # "user_id": 12
+    # }
+    path("delete-group/<int:group_id>/", DeleteChatGroupAPIView.as_view(), name="delete_chat_group"),
+
   
 ]

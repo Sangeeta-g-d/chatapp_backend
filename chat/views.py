@@ -603,3 +603,106 @@ class DeleteMessageAPIView(APIView):
         return Response({"detail": "Message deleted successfully."}, status=status.HTTP_200_OK)
 
 
+class RemoveUserFromGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        """
+        Removes a user from a chat group and sends FCM notification to the removed user.
+        """
+        current_user = request.user
+        user_id_to_remove = request.data.get("user_id")
+
+        if not user_id_to_remove:
+            return Response({
+                "status": 400,
+                "message": "User ID is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        chat_group = get_object_or_404(ChatGroup, id=group_id)
+
+        # ✅ Check group type
+        if not chat_group.is_group:
+            return Response({
+                "status": 400,
+                "message": "Cannot remove users from a 1-1 chat."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ Check permission (only creator can remove)
+        if chat_group.created_by != current_user:
+            return Response({
+                "status": 403,
+                "message": "Only the group creator can remove members."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # ✅ Get user to remove
+        user_to_remove = get_object_or_404(CustomUser, id=user_id_to_remove)
+
+        # ✅ Check if user is in group
+        if not chat_group.members.filter(id=user_to_remove.id).exists():
+            return Response({
+                "status": 404,
+                "message": "User is not a member of this group."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # ✅ Remove user
+        chat_group.members.remove(user_to_remove)
+
+        # ✅ Send FCM notification
+        devices = UserDevice.objects.filter(user=user_to_remove)
+        title = "Removed from Chat Group"
+        body = f"You have been removed from the group '{chat_group.name}'."
+        data = {"chat_group_id": str(chat_group.id)}
+
+        for device in devices:
+            send_fcm_notification(device.device_token, title, body, data)
+
+        return Response({
+            "status": 200,
+            "message": f"User '{user_to_remove.full_name}' removed successfully and notified.",
+        }, status=status.HTTP_200_OK)
+
+
+
+class DeleteChatGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, group_id):
+        """
+        Deletes a chat group (by creator or admin) and sends notifications to members.
+        """
+        current_user = request.user
+        chat_group = get_object_or_404(ChatGroup, id=group_id)
+
+        # ✅ Only creator or admin can delete
+        if chat_group.created_by != current_user and not current_user.is_staff:
+            return Response({
+                "status": 403,
+                "message": "You do not have permission to delete this group."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if not chat_group.is_group:
+            return Response({
+                "status": 400,
+                "message": "1-1 chats cannot be deleted through this API."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ Notify members before deletion
+        members = chat_group.members.all()
+        title = "Group Deleted"
+        body = f"The group '{chat_group.name}' has been deleted by the admin."
+        data = {"chat_group_id": str(chat_group.id)}
+
+        for member in members:
+            devices = UserDevice.objects.filter(user=member)
+            for device in devices:
+                send_fcm_notification(device.device_token, title, body, data)
+
+        # ✅ Delete group
+        group_name = chat_group.name
+        chat_group.delete()
+
+        return Response({
+            "status": 200,
+            "message": f"Group '{group_name}' deleted successfully and members notified."
+        }, status=status.HTTP_200_OK)
