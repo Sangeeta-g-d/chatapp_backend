@@ -284,6 +284,8 @@ class CombinedChatOverviewAPIView(APIView):
 
     def get(self, request):
         user = request.user
+
+        # --- Check if user suspended ---
         if user and user.is_authenticated and user.is_suspended:
             return Response(
                 {
@@ -296,9 +298,10 @@ class CombinedChatOverviewAPIView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
+
         base_url = request.build_absolute_uri('/')[:-1]
 
-        # Step 1: Fetch all pinned chat IDs for current user
+        # --- Get pinned chats ---
         pinned_chat_ids = set(
             PinnedChat.objects.filter(user=user).values_list('chat_group_id', flat=True)
         )
@@ -313,60 +316,74 @@ class CombinedChatOverviewAPIView(APIView):
         ).order_by('-last_message_time').distinct()
 
         one_to_one_data = []
-
         for chat in one_to_one_chats:
             other = chat.get_other_user(user)
-            if other:
-                profile = getattr(other, 'userprofile', None)
-                image_url = (
-                    base_url + profile.profile_picture.url
-                    if profile and profile.profile_picture else None
-                )
+            if not other:
+                continue
 
-                last_message = chat.messages.order_by('-timestamp').first()
+            profile = getattr(other, 'userprofile', None)
+            image_url = base_url + profile.profile_picture.url if profile and profile.profile_picture else None
 
-                # Count unseen messages
-                unseen_count = chat.messages.exclude(
-                    seen_statuses__user=user
-                ).exclude(
-                    sender=user  # Don’t count messages sent by self
-                ).count()
+            last_message = chat.messages.order_by('-timestamp').first()
+            unseen_count = chat.messages.exclude(
+                seen_statuses__user=user
+            ).exclude(
+                sender=user
+            ).count()
 
-                one_to_one_data.append({
-                    "chat_group_id": chat.id,
-                    "user_id": other.id,
-                    "name": other.get_full_name(),
-                    "profile_picture": image_url,
-                    "last_message": last_message.get_content() if last_message else None,
-                    "last_message_time": last_message.timestamp if last_message else None,
-                    "is_pinned": chat.id in pinned_chat_ids,
-                    "unseen_count": unseen_count
-                })
+            # 🟢 Handle last message: text or media
+            if last_message:
+                if last_message.media:
+                    last_message_display = base_url + last_message.media.url
+                    message_type = "media"
+                elif last_message.content_encrypted:
+                    last_message_display = last_message.get_content()
+                    message_type = "text"
+                else:
+                    last_message_display = None
+                    message_type = None
+            else:
+                last_message_display = None
+                message_type = None
+
+            one_to_one_data.append({
+                "chat_group_id": chat.id,
+                "user_id": other.id,
+                "name": other.get_full_name(),
+                "profile_picture": image_url,
+                "last_message": last_message_display,
+                "last_message_type": message_type,
+                "last_message_time": last_message.timestamp if last_message else None,
+                "is_pinned": chat.id in pinned_chat_ids,
+                "unseen_count": unseen_count,
+            })
 
         # --- Group Chats ---
         group_chats = (
-            ChatGroup.objects.filter(
-                is_group=True,
-                members=user
-            )
-            .annotate(
-                last_message_time=Coalesce(Max('messages__timestamp'), F('created_at'))
-            )
+            ChatGroup.objects.filter(is_group=True, members=user)
+            .annotate(last_message_time=Coalesce(Max('messages__timestamp'), F('created_at')))
             .order_by('-last_message_time')
-            )
+        )
 
         group_data = []
-
         for group in group_chats:
             last_message = group.messages.order_by('-timestamp').first()
-            last_message_text = decrypt_text(last_message.content_encrypted) if last_message and last_message.content_encrypted else None
 
-            group_image_url = (
-                base_url + group.group_profile_picture.url
-                if group.group_profile_picture else None
-            )
+            if last_message:
+                if last_message.media:
+                    last_message_text = base_url + last_message.media.url
+                    message_type = "media"
+                elif last_message.content_encrypted:
+                    last_message_text = decrypt_text(last_message.content_encrypted)
+                    message_type = "text"
+                else:
+                    last_message_text = None
+                    message_type = None
+            else:
+                last_message_text = None
+                message_type = None
 
-            # Count unseen messages in group
+            group_image_url = base_url + group.group_profile_picture.url if group.group_profile_picture else None
             unseen_count = group.messages.exclude(
                 seen_statuses__user=user
             ).exclude(
@@ -378,15 +395,16 @@ class CombinedChatOverviewAPIView(APIView):
                 "group_name": group.name,
                 "member_count": group.members.count(),
                 "last_message": last_message_text,
+                "last_message_type": message_type,
                 "last_message_time": last_message.timestamp if last_message else None,
                 "group_profile_picture": group_image_url,
                 "is_pinned": group.id in pinned_chat_ids,
-                "unseen_count": unseen_count
+                "unseen_count": unseen_count,
             })
 
         return Response({
             "one_to_one_chats": one_to_one_data,
-            "group_chats": group_data
+            "group_chats": group_data,
         })
 
 MAX_PINNED_CHATS = 4 
