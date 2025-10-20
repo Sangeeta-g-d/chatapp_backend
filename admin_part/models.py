@@ -28,8 +28,8 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(email=email, phone_number=phone_number, password=password, **extra_fields)
 
 class EmailCenter(models.Model):
-    email = models.EmailField(unique=True, blank=True, null=True)
-    phone_number = models.CharField(max_length=15, unique=True, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
     employee_id = models.CharField(max_length=50)
     level = models.CharField(max_length=100)
     
@@ -46,12 +46,6 @@ class EmailCenter(models.Model):
 
     def __str__(self):
         return self.email or self.phone_number or f"Employee {self.employee_id}"
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=['email'], name='unique_email', condition=~models.Q(email=None)),
-            models.UniqueConstraint(fields=['phone_number'], name='unique_phone_number', condition=~models.Q(phone_number=None)),
-        ]
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):

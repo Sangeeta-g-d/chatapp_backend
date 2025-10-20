@@ -19,7 +19,6 @@ urlpatterns = [
     path('delete-message/<message_id>/', DeleteMessageAPIView.as_view(), name='delete-message'),
 
 
-
     # remove user
     path("remove-user/<int:group_id>/", RemoveUserFromGroupAPIView.as_view(), name="remove_user_from_group"),
 

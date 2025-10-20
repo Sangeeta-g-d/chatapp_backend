@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 from admin_part.models import CustomUser, EmailCenter
 from .utils import generate_otp, send_otp_via_email
 from .models import EmailOTP,UserDevice
@@ -84,52 +85,35 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = CustomUser.objects.create_user(**validated_data)
         return user
 
-
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    username = serializers.CharField(required=False, allow_blank=True)
+class CustomLoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     phone_number = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        username = attrs.get('username')  # optional alias
         email = attrs.get('email')
         phone_number = attrs.get('phone_number')
         password = attrs.get('password')
 
-        # ✅ Allow flexible login: username/email/phone all acceptable
-        login_identifier = email or phone_number or username
+        if not password or (not email and not phone_number):
+            raise serializers.ValidationError("Email or phone number and password are required.")
 
-        if not login_identifier or not password:
-            raise serializers.ValidationError("Either email or phone number and password are required.")
-
-        # ✅ Try to find the user by email or phone number
-        user = None
-        if '@' in str(login_identifier):
-            user = CustomUser.objects.filter(email__iexact=login_identifier).first()
+        # Find user
+        if email:
+            user = CustomUser.objects.filter(email__iexact=email).first()
+        elif phone_number:
+            user = CustomUser.objects.filter(phone_number=phone_number).first()
         else:
-            user = CustomUser.objects.filter(phone_number=login_identifier).first()
+            user = None
 
-        if not user:
-            raise serializers.ValidationError("Invalid credentials.")
-
-        if not user.check_password(password):
+        if not user or not user.check_password(password):
             raise serializers.ValidationError("Invalid credentials.")
 
         if not user.is_active:
             raise serializers.ValidationError("This account is inactive.")
 
-        # ✅ Set user in serializer for view access
-        self.user = user
-
-        # ✅ Generate tokens
-        data = super().get_token(user)
-        return {
-            'refresh': str(data),
-            'access': str(data.access_token)
-        }
-
+        attrs['user'] = user
+        return attrs
 
 class SendOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()

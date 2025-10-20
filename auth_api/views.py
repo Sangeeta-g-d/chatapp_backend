@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from .models import *
-from . serializers import *
+from .serializers import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -64,70 +64,36 @@ class UserRegistrationView(APIView):
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        # Add custom claims to token (for client-side decoding if needed)
-        token['full_name'] = user.full_name
-        token['email'] = user.email
-        return token
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-
-        # Add additional user details to response
-        data['user_id'] = self.user.id
-        data['full_name'] = self.user.full_name
-        data['email'] = self.user.email
-
-        # Add level and employee_id if available from EmailCenter
-        if self.user.level_id:
-            data['level'] = self.user.level_id.level
-            data['employee_id'] = self.user.level_id.employee_id
-        else:
-            data['level'] = None
-            data['employee_id'] = None
-
-        return data
-    
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
+class CustomTokenObtainPairView(APIView):
+    serializer_class = CustomLoginSerializer
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        try:
-            serializer.is_valid(raise_exception=True)
-        except Exception as e:
-            return Response({
-                "status": 401,
-                "message": "Invalid credentials",
-                "data": None
-            }, status=status.HTTP_401_UNAUTHORIZED)
+        user = serializer.validated_data['user']
 
-        user = serializer.user
-
-        # ✅ Check if suspended
-        if hasattr(user, "is_suspended") and user.is_suspended:
+        # Check suspension (if using EmailCenter)
+        if hasattr(user, 'is_suspended') and user.is_suspended:
             return Response({
                 "status": 403,
                 "message": "Your account is suspended. Please contact admin.",
                 "data": {
-                    "suspension_reason": getattr(user.level_id, "suspension_reason", None),
-                    "suspension_until": getattr(user.level_id, "suspension_until", None)
+                    "suspension_reason": getattr(user.level_id, 'suspension_reason', None),
+                    "suspension_until": getattr(user.level_id, 'suspension_until', None)
                 }
             }, status=status.HTTP_403_FORBIDDEN)
 
-        # ✅ Successful login
-        data = serializer.validated_data
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+
         return Response({
             "status": 200,
             "message": "Login successful",
             "data": {
-                "refresh": data.get("refresh"),
-                "access": data.get("access"),
+                "refresh": str(refresh),
+                "access": str(access),
                 "user_id": user.id,
                 "full_name": user.full_name,
                 "email": user.email,
@@ -135,8 +101,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 "level": user.level_id.level if user.level_id else None,
                 "employee_id": user.level_id.employee_id if user.level_id else None
             }
-        }, status=status.HTTP_200_OK)
-    
+        })
 
 
 class SendOTPView(APIView):
