@@ -3,10 +3,12 @@ from django.contrib.auth import authenticate, login,logout
 from . models import *
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
+from django.contrib import messages
 from .models import EmailCenter
 from django.http import JsonResponse
 from django.db import IntegrityError
-
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.views.decorators.http import require_POST
 from feeds.models import Feed
 from feeds.models import Feed, FeedLike, FeedComment
@@ -36,11 +38,14 @@ def login_view(request):
         else:
             error_msg = "Invalid username or password."
     return render(request,'login.html', {'error_msg': error_msg})
+
 def admin_dashboard(request):
     # --- User statistics ---
     total_users = CustomUser.objects.count()
-    suspended_users = CustomUser.objects.filter(level_id__is_suspended=True).count()
-    active_users = total_users - suspended_users
+    # Exclude superusers from user counts
+    total_users_excluding_superusers = CustomUser.objects.filter(is_superuser=False).count()
+    suspended_users = CustomUser.objects.filter(level_id__is_suspended=True, is_superuser=False).count()
+    active_users = total_users_excluding_superusers - suspended_users
 
     # --- Feed statistics ---
     total_feeds = Feed.objects.count()
@@ -60,7 +65,7 @@ def admin_dashboard(request):
     )
 
     context = {
-        "total_users": total_users,
+        "total_users": total_users_excluding_superusers,  # Now excludes superusers
         "active_users": active_users,
         "suspended_users": suspended_users,
         "total_feeds": total_feeds,
@@ -73,6 +78,47 @@ def admin_dashboard(request):
         "top_stories": top_stories,
     }
     return render(request, "admin_dashboard.html", context)
+
+
+def user_management(request):
+    # Get all users excluding superusers
+    users = CustomUser.objects.filter(is_superuser=False).select_related('level_id').order_by('-date_joined')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        users = users.filter(
+            Q(email__icontains=search_query) |
+            Q(full_name__icontains=search_query) |
+            Q(phone_number__icontains=search_query) |
+            Q(level_id__level__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(users, 10)  # Show 10 users per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'users': page_obj,
+        'search_query': search_query,
+        'total_users': users.count(),
+    }
+    return render(request, 'user_management.html', context)
+
+
+def toggle_user_status(request, user_id):
+    if request.method == 'POST':
+        user = get_object_or_404(CustomUser, id=user_id, is_superuser=False)
+        
+        # Toggle the is_active status
+        user.is_active = not user.is_active
+        user.save()
+        
+        action = "activated" if user.is_active else "deactivated"
+        messages.success(request, f"User {user.email} has been {action} successfully.")
+    
+    return redirect('user_management')
 
 def email_center(request):
     emails = EmailCenter.objects.all().order_by('id')

@@ -1,34 +1,22 @@
 import json
-from urllib.parse import parse_qs
+import asyncio
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from django.conf import settings
-from cryptography.fernet import Fernet
 
 from .models import ChatGroup, Message, MessageSeenStatus, MessageReaction
 
 User = get_user_model()
 
 
-# --- Encryption Utilities ---
-def decrypt_text(encrypted):
-    key = settings.ENCRYPTION_KEY.encode()
-    fernet = Fernet(key)
-    try:
-        return fernet.decrypt(encrypted.encode()).decode()
-    except:
-        return "[Message could not be decrypted]"
-
-
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.chat_group_id = self.scope['url_route']['kwargs']['chat_group_id']
         self.room_group_name = f'chat_{self.chat_group_id}'
-
         self.user = self.scope["user"]
+        
         if self.user == AnonymousUser():
             await self.close()
         else:
@@ -53,7 +41,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             if message_type == 'message':
                 await self.handle_new_message(data)
-            elif message_type == 'media_message':  # notify about media
+            elif message_type == 'media_message':
                 await self.handle_media_message(data)
             elif message_type == 'seen':
                 await self.handle_seen_status(data)
@@ -66,16 +54,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"[Error] JSON decode error: {e}")
         except Exception as e:
             print(f"[Error] Exception in receive: {e}")
+            import traceback
+            traceback.print_exc()
 
     # -------------------- Message Handling --------------------
 
     async def handle_new_message(self, data):
         message = data.get('message')
         sender_id = data.get('sender_id')
-        media_url = data.get('media_url')
+        
         if not message:
             print(f"[Error] Empty message received.")
             return
+            
         if message and sender_id:
             message_obj = await self.save_message(self.chat_group_id, sender_id, message)
             if message_obj:
@@ -91,9 +82,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'timestamp': message_obj.timestamp.isoformat(),
                     }
                 )
-                        # 🔹 Send Push Notification to opposite users
-                await self.send_push_notification(message_obj, decrypted_content)
-
+                
+                # 🔹 Send Push Notification - Fire and forget (don't block message delivery)
+                asyncio.create_task(self.send_push_notification(message_obj, decrypted_content))
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
@@ -105,7 +96,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
     
     async def handle_media_message(self, data):
-    # These values come from API response
         message_id = data.get('message_id')
         sender_id = data.get('sender_id')
         message = data.get('message')
@@ -127,6 +117,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'timestamp': timestamp,
             }
         )
+        
     async def chat_media_message(self, event):
         await self.send(text_data=json.dumps({
             'type': 'media_message',
@@ -142,6 +133,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "type": "message_deleted",
             "message_id": event["message_id"],
         }))
+
     @database_sync_to_async
     def save_message(self, group_id, sender_id, message):
         try:
@@ -153,6 +145,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return msg
         except Exception as e:
             print(f"[Error] Saving message failed: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     @database_sync_to_async
@@ -240,40 +234,96 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"[Error] Saving reaction failed: {e}")
 
-        # -------------------- Push Notification --------------------
-    # Remove the decorator and make it async
+    # -------------------- Push Notification --------------------
+    
     async def send_push_notification(self, message_obj, decrypted_content):
+        """
+        Send FCM notifications to all group members except sender
+        """
         try:
-            group = message_obj.thread
-            sender = message_obj.sender
-            sender_name = sender.get_full_name()
-    
-            # Get opposite members
-            recipients = group.members.exclude(id=sender.id)
-    
-            for user in recipients:
-                # Use database_sync_to_async for the database query
-                devices = await self.get_user_devices(user)
-                for device in devices:
-                    # Import inside function to avoid circular imports
-                    from .firebase_utils import send_fcm_notification
+            print(f"[FCM] Starting notification for message {message_obj.id}")
+            
+            # Get notification data using database_sync_to_async
+            notification_data = await self.get_notification_data(message_obj)
+            
+            if not notification_data:
+                print("[FCM] No notification data retrieved")
+                return
+            
+            sender_name = notification_data['sender_name']
+            recipients_devices = notification_data['recipients_devices']
+            
+            print(f"[FCM] Found {len(recipients_devices)} devices to notify")
+            
+            # Import FCM function
+            from .firebase_utils import send_fcm_notification
+            
+            # Send notifications to all devices
+            for device_info in recipients_devices:
+                try:
+                    print(f"[FCM] Sending to device: {device_info['token'][:20]}...")
                     
-                    # Run the synchronous FCM function in thread pool
-                    import asyncio
+                    # Run FCM send in thread pool to avoid blocking
                     await asyncio.get_event_loop().run_in_executor(
-                        None, 
+                        None,
                         send_fcm_notification,
-                        device.device_token,
+                        device_info['token'],
                         f"New message from {sender_name}",
                         decrypted_content[:50],
                         {
-                            "chat_group_id": str(group.id),
+                            "chat_group_id": str(message_obj.thread.id),
                             "message_id": str(message_obj.id),
                         }
                     )
+                    print(f"[FCM] Successfully sent to {device_info['user_email']}")
+                    
+                except Exception as device_error:
+                    print(f"[FCM Error] Failed for device {device_info.get('user_email', 'unknown')}: {device_error}")
+                    import traceback
+                    traceback.print_exc()
+                    
         except Exception as e:
-            print(f"[Error] Push notification failed: {e}")
+            print(f"[FCM Error] Push notification failed: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    @database_sync_to_async
+    def get_notification_data(self, message_obj):
+        """
+        Fetch all data needed for notifications in one database query
+        """
+        try:
+            group = message_obj.thread
+            sender = message_obj.sender
+            sender_name = sender.get_full_name() or sender.username
+            
+            # Get all recipients (members except sender)
+            recipients = group.members.exclude(id=sender.id)
+            
+            # Collect all device tokens
+            recipients_devices = []
+            for user in recipients:
+                for device in user.devices.all():
+                    recipients_devices.append({
+                        'token': device.device_token,
+                        'user_email': user.email,
+                        'user_id': user.id
+                    })
+            
+            print(f"[FCM] Sender: {sender_name}, Recipients: {[r['user_email'] for r in recipients_devices]}")
+            
+            return {
+                'sender_name': sender_name,
+                'recipients_devices': recipients_devices
+            }
+            
+        except Exception as e:
+            print(f"[FCM Error] Failed to get notification data: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     @database_sync_to_async
     def get_user_devices(self, user):
+        """Legacy method - can be removed if not used elsewhere"""
         return list(user.devices.all())

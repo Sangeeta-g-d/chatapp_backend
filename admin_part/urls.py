@@ -10,5 +10,7 @@ urlpatterns = [
     path('logout/',views.logout_view,name="logout"),
     path("feeds/delete/<int:feed_id>/", views.delete_feed, name="delete_feed"),
     # path("email_center/delete/<int:email_id>/", views.delete_email, name="delete_email"),
+    path('user_management/', views.user_management, name='user_management'),
+    path('toggle-status/<int:user_id>/', views.toggle_user_status, name='toggle_user_status'),
 
 ]
