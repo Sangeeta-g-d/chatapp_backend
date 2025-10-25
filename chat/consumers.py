@@ -263,7 +263,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             for device_info in recipients_devices:
                 try:
                     print(f"[FCM] Sending to device: {device_info['token'][:20]}...")
-                    
+                    data_payload = {
+                        "message_id": str(message_obj.id),
+                        "sender_id": str(sender_id)
+                    }
+                    if getattr(message_obj.thread, "is_group", False):
+                        data_payload["chat_group_id"] = str(message_obj.thread.id)
                     # Run FCM send in thread pool to avoid blocking
                     await asyncio.get_event_loop().run_in_executor(
                         None,
@@ -271,11 +276,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         device_info['token'],
                         f"{sender_name}",
                         decrypted_content[:50],
-                        {
-                            "chat_group_id": str(message_obj.thread.id),
-                            "message_id": str(message_obj.id),
-                            "sender_id": str(sender_id)
-                        }
+                        data_payload
                     )
                     print(f"[FCM] Successfully sent to {device_info['user_email']}")
                     
