@@ -110,10 +110,13 @@ class ChatHistoryAPIView(APIView):
 
         paginator = SafePageNumberPagination()
         paginator.page_size = 20                      # default page size
+        paginator.page_query_param = "page"           # allow ?page=NN
         paginator.page_size_query_param = "page_size" # optional ?page_size=
         paginator.max_page_size = 100
 
-        page_messages = paginator.paginate_queryset(messages_qs, request)  # returns list or empty list (for invalid page)
+        # paginate_queryset will return an actual page's object_list or an empty list
+        # (SafePageNumberPagination handles invalid pages and sets paginator.page accordingly)
+        page_messages = paginator.paginate_queryset(messages_qs, request)
 
         messages_data = []
         for msg in page_messages:
@@ -133,12 +136,12 @@ class ChatHistoryAPIView(APIView):
                 "is_seen": msg.seen_statuses.filter(user=current_user).exists(),
             })
 
-        # you may optionally include pagination meta (page, page_size, total_count) while preserving existing structure
-        # below we add basic pagination fields but keep response shape intact
+        # compute pagination meta without breaking response on invalid page
         try:
             total_count = paginator.page.paginator.count
             current_page_number = getattr(paginator.page, "number", 1)
         except Exception:
+            # fallback: return correct total and requested page param
             total_count = messages_qs.count()
             current_page_number = int(request.query_params.get("page", 1) or 1)
 
@@ -166,7 +169,7 @@ class ChatHistoryAPIView(APIView):
                 )
             } if receiver else None,
             "messages": messages_data,
-            "pagination": {                                 # optional, remove if you don't want meta
+            "pagination": {                                 # optional meta (keeps response shape)
                 "total_count": total_count,
                 "page": current_page_number,
                 "page_size": paginator.get_page_size(request),
