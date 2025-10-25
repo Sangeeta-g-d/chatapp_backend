@@ -5,6 +5,7 @@ from rest_framework import status
 from .models import *
 from rest_framework import generics
 from .serializers import *
+from rest_framework.pagination import PageNumberPagination
 
 class CreateFeedAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -118,19 +119,29 @@ class FeedListAPIView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        feeds = Feed.objects.all().order_by("-created_at")  # ✅ latest first
-        serializer = FeedListSerializer(feeds, many=True, context={"request": request})
+        feeds = Feed.objects.all().order_by("-created_at")  # latest first
 
-        # ✅ Logged-in user details
+        # pagination
+        paginator = PageNumberPagination()
+        paginator.page_size = 10                       # default page size
+        paginator.page_size_query_param = "page_size"  # allow ?page_size=
+        paginator.max_page_size = 50
+
+        page = paginator.paginate_queryset(feeds, request)
+        serializer = FeedListSerializer(page, many=True, context={"request": request})
+
+        # Logged-in user details
         user_level = user.level_id.level if user.level_id else None
-        user_role = user.role if hasattr(user, "role") else None  # ✅ Add role
+        user_role = user.role if hasattr(user, "role") else None
 
-        return Response({
-            "user_level": user_level,      
-            "user_role": user_role,          
-            "can_upload": user.can_upload_feed,  
-            "feeds": serializer.data
+        # build paginated response and add extra fields
+        response = paginator.get_paginated_response(serializer.data)
+        response.data.update({
+            "user_level": user_level,
+            "user_role": user_role,
+            "can_upload": getattr(user, "can_upload_feed", False),
         })
+        return response
 
 class FeedCommentsListAPIView(generics.ListAPIView):
     serializer_class = FeedCommentsSerializer
