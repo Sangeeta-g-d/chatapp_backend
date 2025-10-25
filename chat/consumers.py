@@ -296,6 +296,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             group = message_obj.thread
             sender = message_obj.sender
             sender_name = sender.get_full_name() or sender.username
+            sender_id = sender.id
             
             # Get all recipients (members except sender)
             recipients = group.members.exclude(id=sender.id)
@@ -314,7 +315,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             return {
                 'sender_name': sender_name,
-                'recipients_devices': recipients_devices
+                'recipients_devices': recipients_devices,
+                'sender_id': sender_id,
             }
             
         except Exception as e:
