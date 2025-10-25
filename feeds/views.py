@@ -108,7 +108,7 @@ class FeedListAPIView(APIView):
 
     def get(self, request):
         user = request.user
-        if user and user.is_authenticated and user.is_suspended:
+        if user.is_authenticated and user.is_suspended:
             return Response(
                 {
                     "status": 403,
@@ -123,27 +123,18 @@ class FeedListAPIView(APIView):
 
         feeds = Feed.objects.all().order_by("-created_at")
 
-        paginator = PageNumberPagination()
+        paginator = SafePageNumberPagination()
         paginator.page_size = 10
         paginator.page_size_query_param = "page_size"
         paginator.max_page_size = 50
 
-        try:
-            page = paginator.paginate_queryset(feeds, request)
-        except NotFound:
-            # Create a dummy page object for empty results
-            page = []
-            # manually set the attributes paginator.get_paginated_response expects
-            paginator.page = page
-            paginator.request = request
-            paginator.page.paginator = feeds  # not actually used for empty list
-            paginator.page.number = 1
+        page = paginator.paginate_queryset(feeds, request)
 
         serializer = FeedListSerializer(page, many=True, context={"request": request})
 
         # Logged-in user details
         user_level = user.level_id.level if user.level_id else None
-        user_role = user.role if hasattr(user, "role") else None
+        user_role = getattr(user, "role", None)
 
         response = paginator.get_paginated_response(serializer.data)
         response.data.update({
@@ -152,6 +143,7 @@ class FeedListAPIView(APIView):
             "can_upload": getattr(user, "can_upload_feed", False),
         })
         return response
+
 
 class FeedCommentsListAPIView(generics.ListAPIView):
     serializer_class = FeedCommentsSerializer
