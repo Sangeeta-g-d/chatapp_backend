@@ -252,27 +252,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             sender_name = notification_data['sender_name']
             recipients_devices = notification_data['recipients_devices']
-            sender_id = notification_data['sender_id']
-            is_group = notification_data['is_group']
-            chat_group_id = notification_data['chat_group_id']
+            sender_id = notification_data['sender_id'] 
             
             print(f"[FCM] Found {len(recipients_devices)} devices to notify")
             
             # Import FCM function
             from .firebase_utils import send_fcm_notification
-            
-            # Build notification data payload
-            notification_payload = {
-                "message_id": str(message_obj.id),
-                "sender_id": str(sender_id),
-            }
-            
-            # Add chat_group_id only if it's a group chat
-            if is_group:
-                notification_payload["chat_group_id"] = str(chat_group_id)
-                notification_payload["is_group"] = "true"
-            else:
-                notification_payload["is_group"] = "false"
             
             # Send notifications to all devices
             for device_info in recipients_devices:
@@ -286,7 +271,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         device_info['token'],
                         f"New message from {sender_name}",
                         decrypted_content[:50],
-                        notification_payload
+                        {
+                            "chat_group_id": str(message_obj.thread.id),
+                            "message_id": str(message_obj.id),
+                            "sender_id": str(sender_id)
+                        }
                     )
                     print(f"[FCM] Successfully sent to {device_info['user_email']}")
                     
@@ -310,8 +299,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender = message_obj.sender
             sender_name = sender.get_full_name() or sender.username
             sender_id = sender.id
-            is_group = group.is_group
-            chat_group_id = group.id
             
             # Get all recipients (members except sender)
             recipients = group.members.exclude(id=sender.id)
@@ -326,14 +313,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'user_id': user.id
                     })
             
-            print(f"[FCM] Sender: {sender_name}, Recipients: {[r['user_email'] for r in recipients_devices]}, Is Group: {is_group}")
+            print(f"[FCM] Sender: {sender_name}, Recipients: {[r['user_email'] for r in recipients_devices]}")
             
             return {
                 'sender_name': sender_name,
                 'recipients_devices': recipients_devices,
                 'sender_id': sender_id,
-                'is_group': is_group,
-                'chat_group_id': chat_group_id,
             }
             
         except Exception as e:
