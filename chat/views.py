@@ -17,6 +17,7 @@ from . models import *
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model
 from .firebase_utils import send_fcm_notification  # your helper function
+from feeds.pagination import SafePageNumberPagination
 
 
 User = get_user_model()   # ✅ This ensures User is the actual model, not a string
@@ -98,8 +99,8 @@ class ChatHistoryAPIView(APIView):
 
             receiver = None  # not needed for group chat
 
-        # Fetch messages
-        messages = Message.objects.filter(
+        # Fetch messages (paginated) ------------------------------------------------
+        messages_qs = Message.objects.filter(
             thread=chat_group
         ).prefetch_related(
             'seen_statuses',
@@ -107,20 +108,19 @@ class ChatHistoryAPIView(APIView):
             'sender'
         ).order_by('timestamp')
 
+        paginator = SafePageNumberPagination()
+        paginator.page_size = 20                      # default page size
+        paginator.page_size_query_param = "page_size" # optional ?page_size=
+        paginator.max_page_size = 100
+
+        page_messages = paginator.paginate_queryset(messages_qs, request)  # returns list or empty list (for invalid page)
+
         messages_data = []
-        for msg in messages:
+        for msg in page_messages:
             seen_data = [{
                 "user_id": seen.user.id,
                 "seen_at": seen.seen_at
             } for seen in msg.seen_statuses.all()]
-
-            # 🚫 Reactions temporarily disabled
-            # reaction_data = [{
-            #     "user_id": r.user.id,
-            #     "reaction": r.reaction,
-            #     "emoji": dict(MessageReaction.REACTION_CHOICES).get(r.reaction, ''),
-            #     "reacted_at": r.reacted_at
-            # } for r in msg.reactions.all()]
 
             messages_data.append({
                 "id": msg.id,
@@ -130,10 +130,17 @@ class ChatHistoryAPIView(APIView):
                 "media": request.build_absolute_uri(msg.media.url) if msg.media else None,
                 "timestamp": msg.timestamp,
                 "seen_status": seen_data,
-                # "reactions": reaction_data,  # 🚫 Commented out
                 "is_seen": msg.seen_statuses.filter(user=current_user).exists(),
-                # "my_reaction": next((r for r in reaction_data if r['user_id'] == current_user.id), None),  # 🚫 Commented out
             })
+
+        # you may optionally include pagination meta (page, page_size, total_count) while preserving existing structure
+        # below we add basic pagination fields but keep response shape intact
+        try:
+            total_count = paginator.page.paginator.count
+            current_page_number = getattr(paginator.page, "number", 1)
+        except Exception:
+            total_count = messages_qs.count()
+            current_page_number = int(request.query_params.get("page", 1) or 1)
 
         group_profile_url = (
             request.build_absolute_uri(chat_group.group_profile_picture.url)
@@ -143,7 +150,7 @@ class ChatHistoryAPIView(APIView):
 
         response_data = {
             "chat_group_id": chat_group.id,
-            "can_share_media":current_user.can_share_media,
+            "can_share_media": current_user.can_share_media,
             "is_group": chat_group.is_group,
             "group_name": chat_group.name if chat_group.is_group else None,
             "group_image": group_profile_url,
@@ -159,6 +166,11 @@ class ChatHistoryAPIView(APIView):
                 )
             } if receiver else None,
             "messages": messages_data,
+            "pagination": {                                 # optional, remove if you don't want meta
+                "total_count": total_count,
+                "page": current_page_number,
+                "page_size": paginator.get_page_size(request),
+            }
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
