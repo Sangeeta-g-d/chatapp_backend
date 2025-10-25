@@ -253,7 +253,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender_name = notification_data['sender_name']
             recipients_devices = notification_data['recipients_devices']
             sender_id = notification_data['sender_id'] 
-            
+            print(f"[FCM] Sender ID: {sender_id}")
             print(f"[FCM] Found {len(recipients_devices)} devices to notify")
             
             # Import FCM function
