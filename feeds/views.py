@@ -7,7 +7,7 @@ from rest_framework import generics
 from .serializers import *
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import NotFound
-
+from .pagination import SafePageNumberPagination
 
 class CreateFeedAPIView(APIView):
     permission_classes = [IsAuthenticated]
