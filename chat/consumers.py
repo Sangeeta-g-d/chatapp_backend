@@ -252,6 +252,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             sender_name = notification_data['sender_name']
             recipients_devices = notification_data['recipients_devices']
+            sender_id = notification_data['sender_id'] 
             
             print(f"[FCM] Found {len(recipients_devices)} devices to notify")
             
@@ -273,6 +274,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         {
                             "chat_group_id": str(message_obj.thread.id),
                             "message_id": str(message_obj.id),
+                            "sender_id": str(sender_id)
                         }
                     )
                     print(f"[FCM] Successfully sent to {device_info['user_email']}")
