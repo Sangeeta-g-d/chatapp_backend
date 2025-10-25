@@ -123,11 +123,16 @@ class FeedListAPIView(APIView):
 
         # pagination
         paginator = PageNumberPagination()
-        paginator.page_size = 10                       # default page size
-        paginator.page_size_query_param = "page_size"  # allow ?page_size=
+        paginator.page_size = 10
+        paginator.page_size_query_param = "page_size"
         paginator.max_page_size = 50
 
-        page = paginator.paginate_queryset(feeds, request)
+        try:
+            page = paginator.paginate_queryset(feeds, request)
+        except NotFound:
+            # If invalid page number, return empty list with same pagination structure
+            page = []
+
         serializer = FeedListSerializer(page, many=True, context={"request": request})
 
         # Logged-in user details
