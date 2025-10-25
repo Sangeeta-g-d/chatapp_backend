@@ -14,6 +14,7 @@ def send_fcm_notification(token, title, body, data=None):
                 "body": body,
                 "chat_group_id": data.get("chat_group_id", ""),
                 "message_id": data.get("message_id", ""),
+                "sender_id": data.get("sender_id", ""),
                 "click_action": "FLUTTER_NOTIFICATION_CLICK"  # Important for Flutter
             } if data else {
                 "title": title,

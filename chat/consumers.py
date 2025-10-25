@@ -269,7 +269,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         None,
                         send_fcm_notification,
                         device_info['token'],
-                        f"New message from {sender_name}",
+                        f"{sender_name}",
                         decrypted_content[:50],
                         {
                             "chat_group_id": str(message_obj.thread.id),
