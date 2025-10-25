@@ -121,9 +121,8 @@ class FeedListAPIView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        feeds = Feed.objects.all().order_by("-created_at")  # latest first
+        feeds = Feed.objects.all().order_by("-created_at")
 
-        # pagination
         paginator = PageNumberPagination()
         paginator.page_size = 10
         paginator.page_size_query_param = "page_size"
@@ -132,8 +131,13 @@ class FeedListAPIView(APIView):
         try:
             page = paginator.paginate_queryset(feeds, request)
         except NotFound:
-            # If invalid page number, return empty list with same pagination structure
+            # Create a dummy page object for empty results
             page = []
+            # manually set the attributes paginator.get_paginated_response expects
+            paginator.page = page
+            paginator.request = request
+            paginator.page.paginator = feeds  # not actually used for empty list
+            paginator.page.number = 1
 
         serializer = FeedListSerializer(page, many=True, context={"request": request})
 
@@ -141,7 +145,6 @@ class FeedListAPIView(APIView):
         user_level = user.level_id.level if user.level_id else None
         user_role = user.role if hasattr(user, "role") else None
 
-        # build paginated response and add extra fields
         response = paginator.get_paginated_response(serializer.data)
         response.data.update({
             "user_level": user_level,
