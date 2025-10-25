@@ -258,7 +258,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             # Import FCM function
             from .firebase_utils import send_fcm_notification
-            
+                    # Use group name as title for group messages, otherwise sender name
+            title = getattr(message_obj.thread, "name", None) if getattr(message_obj.thread, "is_group", False) else sender_name
             # Send notifications to all devices
             for device_info in recipients_devices:
                 try:
@@ -274,7 +275,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         None,
                         send_fcm_notification,
                         device_info['token'],
-                        f"{sender_name}",
+                        title,
                         decrypted_content[:50],
                         data_payload
                     )
