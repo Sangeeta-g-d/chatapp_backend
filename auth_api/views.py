@@ -52,9 +52,15 @@ class UserRegistrationView(APIView):
                     "user_id": user.id,
                     "full_name": user.full_name,
                     "email": user.email,
-                    "phone_number": user.phone_number,  # ✅ included here
+                    "phone_number": user.phone_number,
                     "level": getattr(user.level_id, "level", None),
-                    "employee_id": getattr(user.level_id, "employee_id", None)
+                    "employee_id": getattr(user.level_id, "employee_id", None),
+                    "permissions": {
+                        "can_add_story": user.can_add_story,
+                        "can_upload_feed": user.can_upload_feed,
+                        "can_share_media": user.can_share_media,
+                        "can_download_media": user.can_download_media,
+                    }
                 }
             }, status=status.HTTP_201_CREATED)
 

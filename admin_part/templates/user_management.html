@@ -138,26 +138,38 @@
                     <span class="text-muted">{{ user.date_joined|date:"h:i A" }}</span>
                 </small>
             </td>
-            <td class="text-center">
-                <form method="POST" action="{% url 'toggle_user_status' user.id %}" style="display: inline;">
-                    {% csrf_token %}
-                    {% if user.is_active %}
-                        <button type="submit" 
-                                class="btn btn-sm btn-outline-danger" 
-                                title="Deactivate User"
-                                onclick="return confirm('Are you sure you want to deactivate {{ user.email }}?')">
-                            <i class="fas fa-user-slash"></i> Deactivate
-                        </button>
-                    {% else %}
-                        <button type="submit" 
-                                class="btn btn-sm btn-outline-success" 
-                                title="Activate User"
-                                onclick="return confirm('Are you sure you want to activate {{ user.email }}?')">
-                            <i class="fas fa-user-check"></i> Activate
-                        </button>
-                    {% endif %}
-                </form>
-            </td>
+           <td class="text-center">
+    <!-- Toggle Active/Inactive -->
+    <form method="POST" action="{% url 'toggle_user_status' user.id %}" style="display: inline;">
+        {% csrf_token %}
+        {% if user.is_active %}
+            <button type="submit" 
+                    class="btn btn-sm btn-outline-danger me-1" 
+                    title="Deactivate User"
+                    onclick="return confirm('Are you sure you want to deactivate {{ user.email }}?')">
+                <i class="fas fa-user-slash"></i>
+            </button>
+        {% else %}
+            <button type="submit" 
+                    class="btn btn-sm btn-outline-success me-1" 
+                    title="Activate User"
+                    onclick="return confirm('Are you sure you want to activate {{ user.email }}?')">
+                <i class="fas fa-user-check"></i>
+            </button>
+        {% endif %}
+    </form>
+
+    <!-- Delete User -->
+    <form method="POST" action="{% url 'delete_user' user.id %}" style="display: inline;">
+        {% csrf_token %}
+        <button type="submit" 
+                class="btn btn-sm btn-outline-danger" 
+                title="Delete User"
+                onclick="return confirm('⚠️ Are you sure you want to permanently delete {{ user.email }}? This action cannot be undone.')">
+            <i class="fas fa-trash"></i>
+        </button>
+    </form>
+</td>
         </tr>
         {% empty %}
         <tr>
@@ -242,7 +254,36 @@
     font-size: 0.75em;
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 
+<script>
+    {% if success == "activated" %}
+        Toastify({
+            text: "User activated successfully!",
+            duration: 3000,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "#4fbe87",
+        }).showToast();
+    {% elif success == "deactivated" %}
+        Toastify({
+            text: "User deactivated successfully!",
+            duration: 3000,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "#f39c12",
+        }).showToast();
+    {% elif success == "deleted" %}
+        Toastify({
+            text: "User deleted successfully!",
+            duration: 3000,
+            gravity: "top",
+            position: "right",
+            backgroundColor: "#e74c3c",
+        }).showToast();
+    {% endif %}
+</script>
 <!-- FontAwesome Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 {% endblock %}

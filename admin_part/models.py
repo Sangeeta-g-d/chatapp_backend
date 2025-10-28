@@ -32,7 +32,7 @@ class EmailCenter(models.Model):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     employee_id = models.CharField(max_length=50)
     level = models.CharField(max_length=100)
-    
+    dob = models.DateField(blank=True, null=True)
     # Restrictions
     can_add_story = models.BooleanField(default=False)
     can_upload_feed = models.BooleanField(default=False)

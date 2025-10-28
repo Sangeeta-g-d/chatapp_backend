@@ -8,11 +8,10 @@ from .models import *
 from .utils import send_otp
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-
 class UserRegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
-    phone_number = serializers.CharField(max_length=15, required=False, allow_blank=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    phone_number = serializers.CharField(max_length=15, required=True)
+    email = serializers.EmailField(required=True)  # Changed to required=True
 
     class Meta:
         model = CustomUser
@@ -24,44 +23,64 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         email = attrs.get('email')
         phone_number = attrs.get('phone_number')
+        dob = attrs.get('dob')
         password = attrs.get('password')
         confirm_password = attrs.get('confirm_password')
 
-        # ✅ 1. Ensure at least one (email or phone) is provided
-        if not email and not phone_number:
+        # ✅ 1. Ensure ALL THREE fields are provided
+        if not phone_number:
             raise serializers.ValidationError({
-                "detail": "Either email or phone number must be provided."
+                "phone_number": "Phone number is required for registration."
+            })
+        
+        if not email:
+            raise serializers.ValidationError({
+                "email": "Email is required for registration."
+            })
+            
+        if not dob:
+            raise serializers.ValidationError({
+                "dob": "Date of birth is required for registration."
             })
 
-        email_center = None
-
-        # ✅ 2. Try to find authorized record in EmailCenter
-        if email:
-            email_center = EmailCenter.objects.filter(email=email).first()
-        if not email_center and phone_number:
-            email_center = EmailCenter.objects.filter(phone_number=phone_number).first()
-
-        if not email_center:
+        # ✅ 2. Find EXACT match in EmailCenter (all three fields must match)
+        try:
+            email_center = EmailCenter.objects.get(
+                phone_number=phone_number,
+                email=email,
+                dob=dob
+            )
+        except EmailCenter.DoesNotExist:
             raise serializers.ValidationError({
-                "detail": "Neither email nor phone number is authorized for registration."
+                "detail": "Provided phone number, email, and date of birth do not match any authorized record in our system."
             })
+        except EmailCenter.MultipleObjectsReturned:
+            # If multiple records found, still use the first one
+            email_center = EmailCenter.objects.filter(
+                phone_number=phone_number,
+                email=email,
+                dob=dob
+            ).first()
 
-        # ✅ 3. If both provided, check they belong to same record (optional)
-        if email and phone_number and (
-            email_center.email != email or email_center.phone_number != phone_number
-        ):
-            raise serializers.ValidationError({
-                "detail": "Email and phone number do not match the same authorized record."
-            })
+        # ✅ 3. Check if the EmailCenter record is suspended
+        if email_center.is_suspended:
+            if email_center.suspension_until and email_center.suspension_until > timezone.now():
+                raise serializers.ValidationError({
+                    "detail": f"Your account is suspended until {email_center.suspension_until}. Please contact administrator."
+                })
+            elif email_center.suspension_until is None:
+                raise serializers.ValidationError({
+                    "detail": "Your account is suspended indefinitely. Please contact administrator."
+                })
 
-        # ✅ 4. Check phone number uniqueness
-        if phone_number and CustomUser.objects.filter(phone_number=phone_number).exists():
+        # ✅ 4. Check if phone number already used in CustomUser
+        if CustomUser.objects.filter(phone_number=phone_number).exists():
             raise serializers.ValidationError({
                 "phone_number": "This phone number is already registered."
             })
 
-        # ✅ 5. Check email uniqueness
-        if email and CustomUser.objects.filter(email=email).exists():
+        # ✅ 5. Check if email already used in CustomUser
+        if CustomUser.objects.filter(email=email).exists():
             raise serializers.ValidationError({
                 "email": "This email is already registered."
             })
@@ -72,16 +91,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 "confirm_password": "Passwords do not match."
             })
 
-        # Store matched EmailCenter in serializer for later use
+        # ✅ 7. Store matched EmailCenter for use in create()
         attrs['email_center'] = email_center
-
         return attrs
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
         email_center = validated_data.pop('email_center', None)
         validated_data['level_id'] = email_center
-
         user = CustomUser.objects.create_user(**validated_data)
         return user
 

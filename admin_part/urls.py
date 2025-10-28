@@ -12,5 +12,7 @@ urlpatterns = [
     # path("email_center/delete/<int:email_id>/", views.delete_email, name="delete_email"),
     path('user_management/', views.user_management, name='user_management'),
     path('toggle-status/<int:user_id>/', views.toggle_user_status, name='toggle_user_status'),
+    path('delete-user/<int:user_id>/', views.delete_user, name='delete_user'),
+
 
 ]
