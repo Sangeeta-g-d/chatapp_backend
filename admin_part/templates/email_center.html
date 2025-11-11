@@ -114,7 +114,6 @@
                             <td class="text-center" data-label="Can Add Story">{% if e.can_add_story %}✔{% else %}✖{% endif %}</td>
                             <td class="text-center" data-label="Can Upload Feed">{% if e.can_upload_feed %}✔{% else %}✖{% endif %}</td>
                             <td class="text-center" data-label="Can Share Media">{% if e.can_share_media %}✔{% else %}✖{% endif %}</td>
-                            <td class="text-center" data-label="Can Download Media">{% if e.can_download_media %}✔{% else %}✖{% endif %}</td>
                             <td class="text-center" data-label="Suspended">{% if e.is_suspended %}✔{% else %}✖{% endif %}</td>
 
                             <td class="text-center" data-label="Actions">
@@ -244,10 +243,7 @@
                                         <input class="form-check-input" type="checkbox" name="can_share_media" id="modalCanShareMedia">
                                         <label class="form-check-label" for="modalCanShareMedia">Can Share Media</label>
                                     </div>
-                                    <div class="form-check mb-2">
-                                        <input class="form-check-input" type="checkbox" name="can_download_media" id="modalCanDownloadMedia">
-                                        <label class="form-check-label" for="modalCanDownloadMedia">Can Download Media</label>
-                                    </div>
+                                   
                                 </div>
                             </div>
 
@@ -351,10 +347,7 @@
                                         <input class="form-check-input" type="checkbox" name="can_share_media" id="newCanShareMedia">
                                         <label class="form-check-label" for="newCanShareMedia">Can Share Media</label>
                                     </div>
-                                    <div class="form-check mb-2">
-                                        <input class="form-check-input" type="checkbox" name="can_download_media" id="newCanDownloadMedia">
-                                        <label class="form-check-label" for="newCanDownloadMedia">Can Download Media</label>
-                                    </div>
+                            
                                 </div>
                             </div>
 
