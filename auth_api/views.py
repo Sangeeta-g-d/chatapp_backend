@@ -64,11 +64,20 @@ class UserRegistrationView(APIView):
                 }
             }, status=status.HTTP_201_CREATED)
 
+        # Convert validation errors to readable string or dict
+        error_messages = serializer.errors
+        # Optional: Flatten single error messages
+        if isinstance(error_messages, dict):
+            flat_errors = []
+            for field, errors in error_messages.items():
+                flat_errors.append(f"{field}: {', '.join(errors)}")
+            error_messages = " | ".join(flat_errors)
+
         return Response({
             "status": status.HTTP_400_BAD_REQUEST,
-            "message": "Validation error",
-            "errors": serializer.errors
+            "message": error_messages
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CustomTokenObtainPairView(APIView):
     serializer_class = CustomLoginSerializer
