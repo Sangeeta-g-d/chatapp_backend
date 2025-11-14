@@ -108,6 +108,7 @@ class FeedListAPIView(APIView):
 
     def get(self, request):
         user = request.user
+
         if user.is_authenticated and user.is_suspended:
             return Response(
                 {
@@ -129,17 +130,18 @@ class FeedListAPIView(APIView):
         paginator.max_page_size = 50
 
         page = paginator.paginate_queryset(feeds, request)
-
         serializer = FeedListSerializer(page, many=True, context={"request": request})
 
         # Logged-in user details
         user_level = user.level_id.level if user.level_id else None
         user_role = getattr(user, "role", None)
+        user_designation = user_level   # 👈 your requested key
 
         response = paginator.get_paginated_response(serializer.data)
         response.data.update({
             "user_level": user_level,
             "user_role": user_role,
+            "user_designation": user_designation,  # 👈 added
             "can_upload": getattr(user, "can_upload_feed", False),
         })
         return response
