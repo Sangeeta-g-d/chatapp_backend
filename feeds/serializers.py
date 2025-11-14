@@ -52,8 +52,7 @@ class FeedListSerializer(serializers.ModelSerializer):
     profile_picture = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
-    user_designation = serializers.SerializerMethodField()
-
+    user_designation = serializers.SerializerMethodField()  # 👈 NEW FIELD
 
     class Meta:
         model = Feed
@@ -64,12 +63,18 @@ class FeedListSerializer(serializers.ModelSerializer):
             "feed_type",
             "text",
             "file",
-            "link",  # ✅ added here
+            "link",
             "created_at",
             "like_count",
             "comment_count",
             "is_liked",
+            "user_designation",   # 👈 ADD HERE
         ]
+
+    def get_user_designation(self, obj):
+        if obj.user and obj.user.level_id:
+            return obj.user.level_id.level
+        return None
 
     def get_created_at(self, obj):
         saudi_tz = pytz.timezone("Asia/Riyadh")
@@ -88,11 +93,7 @@ class FeedListSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             return obj.likes.filter(user=user).exists()
         return False
-    
-    def get_user_designation(self, obj):
-        if obj.user and obj.user.level_id:
-            return obj.user.level_id.level
-        return None
+
     
 class FeedCommentsSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.full_name", read_only=True)  # optional extra field
