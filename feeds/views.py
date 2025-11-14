@@ -138,15 +138,20 @@ class FeedListAPIView(APIView):
         user_designation = user_level   # 👈 your requested key
 
         response = paginator.get_paginated_response(serializer.data)
-        response.data.update({
+        
+        extra = {
             "user_level": user_level,
             "user_role": user_role,
-            "user_designation": user_designation,  # 👈 added
+            "user_designation": user_designation,
             "can_upload": getattr(user, "can_upload_feed", False),
-        })
+        }
+        
+        # DRF fix — reassign updated dict back
+        response.data = {**response.data, **extra}
+        
         return response
-
-
+        
+        
 class FeedCommentsListAPIView(generics.ListAPIView):
     serializer_class = FeedCommentsSerializer
     permission_classes = [IsAuthenticated]  # remove if not needed
