@@ -50,7 +50,8 @@ INSTALLED_APPS = [
     'chat',
     'channels',
     'story',
-    'feeds'
+    'feeds',
+    'qr_code'
 ]
 from decouple import config
 ASGI_APPLICATION = 'chatapp_backend.asgi.application'

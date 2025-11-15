@@ -333,3 +333,30 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def get_user_devices(self, user):
         """Legacy method - can be removed if not used elsewhere"""
         return list(user.devices.all())
+    
+
+
+
+class QRLoginConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+        self.session_id = self.scope['url_route']['kwargs']['session_id']
+        self.group_name = f"qr_{self.session_id}"
+
+        # Join websocket group
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+
+    # Event received when backend approves QR
+    async def qr_login_approved(self, event):
+        await self.send(text_data=json.dumps(event["data"]))

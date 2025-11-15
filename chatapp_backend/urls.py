@@ -28,6 +28,7 @@ urlpatterns = [
     path('chat-ui/', chat_ui_view, name='chat-ui'),
     path('api/story/', include('story.urls')),
     path('api/feed/',include('feeds.urls')),
+    path('qr/',include('qr_code.urls'))
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
