@@ -38,6 +38,7 @@ class EmailCenter(models.Model):
     can_upload_feed = models.BooleanField(default=False)
     can_share_media = models.BooleanField(default=False)
     can_download_media = models.BooleanField(default=False)
+    can_access_web_app = models.BooleanField(default=False)
 
     # Suspension
     is_suspended = models.BooleanField(default=False)
@@ -84,7 +85,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     @property
     def can_download_media(self):
         return self.level_id.can_download_media if self.level_id else False
-
+    
+    @property
+    def can_access_web_app(self):
+        return self.level_id.can_access_web_app if self.level_id else False
+    
     @property
     def is_suspended(self):
         """Check if the user account is temporarily suspended"""

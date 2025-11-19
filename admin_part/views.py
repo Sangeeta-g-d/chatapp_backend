@@ -158,6 +158,7 @@ def email_center(request):
                 email_obj.can_add_story = bool(request.POST.get("can_add_story"))
                 email_obj.can_upload_feed = bool(request.POST.get("can_upload_feed"))
                 email_obj.can_share_media = bool(request.POST.get("can_share_media"))
+                email_obj.can_access_web_app = bool(request.POST.get("can_access_web_app"))
                 email_obj.can_download_media = bool(request.POST.get("can_download_media"))
 
                 # Update suspension
@@ -243,6 +244,7 @@ def email_center(request):
                             dob=dob if dob else None,
                             can_add_story=bool(request.POST.get("can_add_story")),
                             can_upload_feed=bool(request.POST.get("can_upload_feed")),
+                            can_access_web_app=bool(request.POST.get("can_access_web_app")),
                             can_share_media=bool(request.POST.get("can_share_media")),
                             can_download_media=bool(request.POST.get("can_download_media")),
                             is_suspended=bool(request.POST.get("is_suspended")),

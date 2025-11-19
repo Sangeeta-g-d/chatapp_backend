@@ -74,6 +74,7 @@
                             <th class="text-center">Can Add Story</th>
                             <th class="text-center">Can Upload Feed</th>
                             <th class="text-center">Can Share Media</th>
+                            <th class="text-center">Can Access Web App</th>
                            
                             <th class="text-center">Suspended</th>
                             <th class="text-center">Actions</th>
@@ -114,6 +115,7 @@
                             <td class="text-center" data-label="Can Add Story">{% if e.can_add_story %}✔{% else %}✖{% endif %}</td>
                             <td class="text-center" data-label="Can Upload Feed">{% if e.can_upload_feed %}✔{% else %}✖{% endif %}</td>
                             <td class="text-center" data-label="Can Share Media">{% if e.can_share_media %}✔{% else %}✖{% endif %}</td>
+                            <td class="text-center" data-label="Can Access Web App">{% if e.can_access_web_app %}✔{% else %}✖{% endif %}</td>
                             <td class="text-center" data-label="Suspended">{% if e.is_suspended %}✔{% else %}✖{% endif %}</td>
 
                             <td class="text-center" data-label="Actions">
@@ -130,6 +132,7 @@
                                     data-can_upload_feed="{{ e.can_upload_feed|yesno:'1,0' }}"
                                     data-can_share_media="{{ e.can_share_media|yesno:'1,0' }}"
                                     data-can_download_media="{{ e.can_download_media|yesno:'1,0' }}"
+                                    data-can_access_web_app="{{ e.can_access_web_app|yesno:'1,0' }}"
                                     data-is_suspended="{{ e.is_suspended|yesno:'1,0' }}"
                                     data-suspension_reason="{{ e.suspension_reason }}"
                                     data-suspension_until="{{ e.suspension_until|date:'Y-m-d\\TH:i' }}"
@@ -209,7 +212,7 @@
                         <!-- Date of Birth -->
                         <div class="col-md-6">
                             <label for="modalDob" class="form-label">Date of Birth</label>
-                            <input type="date" class="form-control" id="modalDob" name="dob">
+                            <input type="date" class="form-control" id="modalDob" name="dob" max="2006-12-31">
                         </div>
 
                         <!-- Suspension Until -->
@@ -243,7 +246,10 @@
                                         <input class="form-check-input" type="checkbox" name="can_share_media" id="modalCanShareMedia">
                                         <label class="form-check-label" for="modalCanShareMedia">Can Share Media</label>
                                     </div>
-                                   
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="can_access_web_app" id="modalCanAccessWebApp">
+                                        <label class="form-check-label" for="modalCanAccessWebApp">Can Access Web App</label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -310,7 +316,7 @@
                         <!-- DOB -->
                         <div class="col-md-6">
                             <label for="newDob" class="form-label">Date of Birth</label>
-                            <input type="date" class="form-control" id="newDob" name="dob" placeholder="Select date of birth (optional)">
+                            <input type="date" class="form-control" id="newDob" name="dob" placeholder="Select date of birth (optional)" max="2006-12-31">
                         </div>
 
                         <!-- Suspension Until -->
@@ -347,7 +353,10 @@
                                         <input class="form-check-input" type="checkbox" name="can_share_media" id="newCanShareMedia">
                                         <label class="form-check-label" for="newCanShareMedia">Can Share Media</label>
                                     </div>
-                            
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="can_access_web_app" id="newCanAccessWebApp">
+                                        <label class="form-check-label" for="newCanAccessWebApp">Can Access Web App</label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -390,6 +399,7 @@ document.querySelectorAll(".edit-btn").forEach(btn => {
         document.getElementById("modalCanAddStory").checked = btn.dataset.can_add_story === "1";
         document.getElementById("modalCanUploadFeed").checked = btn.dataset.can_upload_feed === "1";
         document.getElementById("modalCanShareMedia").checked = btn.dataset.can_share_media === "1";
+        document.getElementById("modalCanAccessWebApp").checked = btn.dataset.can_access_web_app === "1";
         document.getElementById("modalIsSuspended").checked = btn.dataset.is_suspended === "1";
 
         // Suspension fields
@@ -426,6 +436,28 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
     });
 });
 
+// Validate DOB on edit form: must be empty or on/before 2006-12-31
+function _isDobAllowed(dateStr) {
+    if (!dateStr) return true;
+    // dateStr is in YYYY-MM-DD
+    try {
+        const provided = new Date(dateStr + 'T00:00:00');
+        const cutoff = new Date('2006-12-31T23:59:59');
+        return provided <= cutoff;
+    } catch (err) {
+        return false;
+    }
+}
+
+document.getElementById('editForm').addEventListener('submit', function(e) {
+    const dob = document.getElementById('modalDob').value;
+    if (dob && !_isDobAllowed(dob)) {
+        e.preventDefault();
+        alert('Date of birth must be on or before 2006-12-31.');
+        return false;
+    }
+});
+
 // Add Email Form Validation
 document.getElementById('addEmailForm').addEventListener('submit', function(e) {
     const email = document.getElementById('newEmail').value.trim();
@@ -434,6 +466,16 @@ document.getElementById('addEmailForm').addEventListener('submit', function(e) {
     if (!email && !phone) {
         e.preventDefault();
         alert('Please provide at least an email or phone number.');
+        return false;
+    }
+});
+
+// Validate DOB on add form: must be empty or on/before 2006-12-31
+document.getElementById('addEmailForm').addEventListener('submit', function(e) {
+    const dob = document.getElementById('newDob').value;
+    if (dob && !_isDobAllowed(dob)) {
+        e.preventDefault();
+        alert('Date of birth must be on or before 2006-12-31.');
         return false;
     }
 });
@@ -583,6 +625,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial render
     renderTable();
+    // Ensure DOB inputs respect cutoff (in case browser ignores static attribute)
+    try {
+        const cutoff = '2006-12-31';
+        const modalDob = document.getElementById('modalDob');
+        const newDob = document.getElementById('newDob');
+        if (modalDob) modalDob.max = cutoff;
+        if (newDob) newDob.max = cutoff;
+    } catch (err) {
+        // no-op
+    }
 });
 </script>
 {% endblock %}
