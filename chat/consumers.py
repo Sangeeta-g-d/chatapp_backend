@@ -160,9 +160,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def set_user_online(self):
-        self.user.status.is_online = True
-        self.user.status.last_active = timezone.now()
-        self.user.status.save()
+        from chat.models import UserStatus
+        status, created = UserStatus.objects.get_or_create(user=self.user)
+        status.is_online = True
+        status.save(update_fields=["is_online"])
 
     @database_sync_to_async
     def set_user_offline(self):

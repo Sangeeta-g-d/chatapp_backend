@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'story',
     'feeds',
     'qr_code'
+    'chat.apps.ChatConfig'
 ]
 from decouple import config
 ASGI_APPLICATION = 'chatapp_backend.asgi.application'
