@@ -4,5 +4,5 @@ from .views import CreateQRSessionAPIView, approve_qr_session
 
 urlpatterns = [
     path("create-qr/", CreateQRSessionAPIView.as_view(), name="qr-create"),
-    path('approve-qr/', approve_qr_session.as_view(), name='qr-approve'),
+    path('approve-qr/', approve_qr_session, name='qr-approve'),
 ]
