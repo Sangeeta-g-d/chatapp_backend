@@ -158,16 +158,10 @@ class VerifyOTPSerializer(serializers.Serializer):
         email = data['email'].lower().strip()
         otp = data['otp'].strip()
 
-        print("Validating OTP for email:", email)
-        print("Received OTP:", otp)
-
-        # Removed is_verified=False for debugging
         records = EmailOTP.objects.filter(
             email__iexact=email,
             otp=otp
         ).order_by('-created_at')
-
-        print("Matching OTP records:", records)
 
         if not records.exists():
             raise serializers.ValidationError("Invalid OTP.")
@@ -183,22 +177,22 @@ class VerifyOTPSerializer(serializers.Serializer):
         self.record = record
         return data
 
-
-
     def create(self, validated_data):
+        # Mark OTP as used
         self.record.is_verified = True
         self.record.save()
-    
+
         from admin_part.models import CustomUser
         user = CustomUser.objects.get(email__iexact=validated_data['email'])
-    
+
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
-    
-        # Extracting employee_id and level from related EmailCenter
+
+        # Extract related EmailCenter fields
         employee_id = user.level_id.employee_id if user.level_id else None
         user_level = user.level_id.level if user.level_id else None
-    
+
+        # 🔥 Added the same properties you added in login API
         return {
             "message": "OTP verified successfully",
             "user_id": user.id,
@@ -206,9 +200,19 @@ class VerifyOTPSerializer(serializers.Serializer):
             "full_name": user.full_name,
             "employee_id": employee_id,
             "user_level": user_level,
+
+            # 🔥 Added Permission Properties
+            "can_add_story": user.can_add_story,
+            "can_upload_feed": user.can_upload_feed,
+            "can_share_media": user.can_share_media,
+            "can_access_web_app": user.can_access_web_app,
+            "is_suspended": user.is_suspended,
+
+            # Tokens
             "access": str(refresh.access_token),
             "refresh": str(refresh),
         }
+
 
 class UserProfileBasicSerializer(serializers.ModelSerializer):
     class Meta:

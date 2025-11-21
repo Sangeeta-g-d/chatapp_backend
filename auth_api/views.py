@@ -114,9 +114,18 @@ class CustomTokenObtainPairView(APIView):
                 "email": user.email,
                 "phone_number": user.phone_number,
                 "level": user.level_id.level if user.level_id else None,
-                "employee_id": user.level_id.employee_id if user.level_id else None
+                "employee_id": user.level_id.employee_id if user.level_id else None,
+
+                # 🔥 Added properties (as you requested)
+                "can_add_story": user.can_add_story,
+                "can_upload_feed": user.can_upload_feed,
+                "can_share_media": user.can_share_media,
+                "can_download_media": user.can_download_media,
+                "can_access_web_app": user.can_access_web_app,
+                "is_suspended": user.is_suspended,
             }
         })
+
 
 
 class SendOTPView(APIView):
@@ -288,6 +297,7 @@ class SendPhoneOTPAPIView(APIView):
 class VerifyPhoneOTPAPIView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = VerifyPhoneOTPSerializer(data=request.data)
+
         if serializer.is_valid():
             result = serializer.save()
             user = result['user']
@@ -303,8 +313,16 @@ class VerifyPhoneOTPAPIView(APIView):
                     "user_id": user.id,
                     "full_name": user.full_name,
                     "email": user.email,
-                    "level": getattr(user, "level", None),
-                    "employee_id": getattr(user, "employee_id", None)
+                    "level": getattr(user.level_id, "level", None) if user.level_id else None,
+                    "employee_id": getattr(user.level_id, "employee_id", None) if user.level_id else None,
+
+                    # 🔥 Added all user properties exactly like login & verify OTP API
+                    "can_add_story": user.can_add_story,
+                    "can_upload_feed": user.can_upload_feed,
+                    "can_share_media": user.can_share_media,
+                    "can_download_media": user.can_download_media,
+                    "can_access_web_app": user.can_access_web_app,
+                    "is_suspended": user.is_suspended,
                 }
             }, status=status.HTTP_200_OK)
 
