@@ -34,7 +34,6 @@ REST_FRAMEWORK = {
     ),
 }
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -42,17 +41,22 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'admin_part',
     'auth_api',
+
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    'chat',
+
+    'chat.apps.ChatConfig',   # ✅ FIXED
     'channels',
+
     'story',
     'feeds',
     'qr_code',
 ]
+
 from decouple import config
 ASGI_APPLICATION = 'chatapp_backend.asgi.application'
 CHANNEL_LAYERS = {
