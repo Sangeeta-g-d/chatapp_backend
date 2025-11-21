@@ -739,3 +739,18 @@ class DeleteChatGroupAPIView(APIView):
             "status": 200,
             "message": f"Group '{group_name}' deleted successfully and members notified."
         }, status=status.HTTP_200_OK)
+
+
+class UserStatusAPIView(APIView):
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            status_obj = user.status
+
+            return Response({
+                "user_id": user.id,
+                "is_online": status_obj.is_online,
+                "last_active": status_obj.last_active
+            })
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)

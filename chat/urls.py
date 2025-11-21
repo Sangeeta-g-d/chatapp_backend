@@ -27,5 +27,6 @@ urlpatterns = [
     # }
     path("delete-group/<int:group_id>/", DeleteChatGroupAPIView.as_view(), name="delete_chat_group"),
 
+    path('login-status/<int:user_id>/', UserStatusAPIView.as_view(), name='chat-app-login-status'),
   
-]
+]   

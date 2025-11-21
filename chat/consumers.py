@@ -21,14 +21,36 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close()
         else:
             print(f"[WebSocket] User {self.user.id} connected to chat group {self.chat_group_id}")
+            await self.set_user_online()
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
             await self.accept()
 
+            await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "presence_update",
+                "user_id": self.user.id,
+                "is_online": True,
+                "last_active": timezone.now().isoformat()
+            }
+            )
+
     async def disconnect(self, close_code):
         print(f"[WebSocket] User {self.user.id} disconnected from chat group {self.chat_group_id}")
+        await self.set_user_offline()
+
+        await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "presence_update",
+                    "user_id": self.user.id,
+                    "is_online": False,
+                    "last_active": timezone.now().isoformat()
+                }
+            )
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -133,6 +155,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "type": "message_deleted",
             "message_id": event["message_id"],
         }))
+
+    
+
+    @database_sync_to_async
+    def set_user_online(self):
+        self.user.status.is_online = True
+        self.user.status.last_active = timezone.now()
+        self.user.status.save()
+
+    @database_sync_to_async
+    def set_user_offline(self):
+        self.user.status.is_online = False
+        self.user.status.last_active = timezone.now()
+        self.user.status.save()
+
+    async def presence_update(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "presence",
+            "user_id": event["user_id"],
+            "is_online": event["is_online"],
+            "last_active": event["last_active"]
+        }))
+
 
     @database_sync_to_async
     def save_message(self, group_id, sender_id, message):

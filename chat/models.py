@@ -63,6 +63,17 @@ class Message(models.Model):
             return decrypt_text(self.content_encrypted)
         return None
 
+# models.py
+class UserStatus(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="status")
+    is_online = models.BooleanField(default=False)
+    last_active = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user.email} - {'Online' if self.is_online else 'Offline'}"
+
+
+
 # ---------- Message Seen Status ----------
 class MessageSeenStatus(models.Model):
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='seen_statuses')
