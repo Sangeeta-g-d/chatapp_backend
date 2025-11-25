@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
-
+import pytz
 from django.utils import timezone
 from datetime import timedelta
 
@@ -15,13 +15,19 @@ from channels.layers import get_channel_layer
 from .models import QRSession
 from admin_part.models import UserProfile
 
-
 class CreateQRSessionAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         ttl_seconds = 120
         expires_at = timezone.now() + timedelta(seconds=ttl_seconds)
+
+        # Convert to Saudi Time
+        saudi_tz = pytz.timezone("Asia/Riyadh")
+        expires_at_saudi = expires_at.astimezone(saudi_tz)
+
+        # Format example: 25 Nov 2025, 09:41 AM
+        formatted_saudi_time = expires_at_saudi.strftime("%d %b %Y, %I:%M %p")
 
         session = QRSession.objects.create(expires_at=expires_at)
 
@@ -32,7 +38,9 @@ class CreateQRSessionAPIView(APIView):
 
         return Response({
             "qr_payload": payload,
-            "expires_at": expires_at
+            "expires_at_utc": expires_at,                    # original UTC
+            "expires_at_saudi": expires_at_saudi,           # datetime in Riyadh timezone
+            "expires_at_formatted": formatted_saudi_time    # nicely formatted string
         })
 
 
