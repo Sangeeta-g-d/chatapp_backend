@@ -106,7 +106,7 @@ class ChatHistoryAPIView(APIView):
             'seen_statuses',
             # 'reactions',  # 🚫 Commented out
             'sender'
-        ).order_by('-id')
+        ).order_by('id')
 
         paginator = SafePageNumberPagination()
         paginator.page_size = 20                      # default page size
