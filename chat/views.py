@@ -106,7 +106,7 @@ class ChatHistoryAPIView(APIView):
             'seen_statuses',
             # 'reactions',  # 🚫 Commented out
             'sender'
-        ).order_by('id')
+        ).order_by('-id')
 
         paginator = SafePageNumberPagination()
         paginator.page_size = 20                      # default page size
@@ -117,7 +117,7 @@ class ChatHistoryAPIView(APIView):
         # paginate_queryset will return an actual page's object_list or an empty list
         # (SafePageNumberPagination handles invalid pages and sets paginator.page accordingly)
         page_messages = paginator.paginate_queryset(messages_qs, request)
-
+        page_messages = list(reversed(page_messages))
         messages_data = []
         for msg in page_messages:
             seen_data = [{
