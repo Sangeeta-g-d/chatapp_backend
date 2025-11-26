@@ -8,10 +8,8 @@ from rest_framework import status
 import pytz
 from django.utils import timezone
 from datetime import timedelta
-
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-
 from .models import QRSession
 from admin_part.models import UserProfile
 

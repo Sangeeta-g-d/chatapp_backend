@@ -2,6 +2,8 @@ from django.db import models
 from django.conf import settings
 from cryptography.fernet import Fernet
 from django.utils import timezone
+from datetime import timedelta
+from django.utils import timezone
 
 User = settings.AUTH_USER_MODEL
 
@@ -45,6 +47,7 @@ class PinnedChat(models.Model):
 
     def __str__(self):
         return f"{self.user.email} pinned {self.chat_group}"
+    
 class Message(models.Model):
     thread = models.ForeignKey(ChatGroup, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -72,7 +75,12 @@ class UserStatus(models.Model):
     def __str__(self):
         return f"{self.user.email} - {'Online' if self.is_online else 'Offline'}"
 
-
+    @property
+    def auto_offline(self):
+        """Automatically offline if last seen is older than X minutes"""
+        if self.last_active and timezone.now() - self.last_active > timedelta(minutes=5):
+            return False
+        return self.is_online
 
 # ---------- Message Seen Status ----------
 class MessageSeenStatus(models.Model):
