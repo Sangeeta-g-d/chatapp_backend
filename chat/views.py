@@ -1,4 +1,5 @@
 # views.py
+from re import search
 from rest_framework.views import APIView
 from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated
@@ -333,7 +334,7 @@ class CombinedChatOverviewAPIView(APIView):
 
         # --- GET SEARCH PARAM ---
         search = request.query_params.get("search", "").strip().lower()
-
+        print("Search Param:", search)
         pinned_chat_ids = set(
             PinnedChat.objects.filter(user=user).values_list('chat_group_id', flat=True)
         )
@@ -351,7 +352,9 @@ class CombinedChatOverviewAPIView(APIView):
         if search:
             one_to_one_queryset = one_to_one_queryset.filter(
                 members__full_name__icontains=search
-            ).exclude(members=user)
+            )
+
+        print("One-to-One Queryset:", one_to_one_queryset)
 
         one_to_one_chats = one_to_one_queryset.order_by('-last_message_time')
 
