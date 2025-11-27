@@ -42,9 +42,24 @@ class OtherUsersProfileAPIView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        # 🔍 Get search param
+        search = request.query_params.get('search', '').strip()
+
+        # Base users (excluding self & superuser)
         users = CustomUser.objects.exclude(id=request.user.id).exclude(is_superuser=True)
-        serializer = CustomUserWithOptionalProfileSerializer(users, many=True, context={'request': request})
+
+        # If search param exists → filter
+        if search:
+            users = users.filter(full_name__icontains=search)  # case-insensitive search
+
+        serializer = CustomUserWithOptionalProfileSerializer(
+            users,
+            many=True,
+            context={'request': request}
+        )
         return Response(serializer.data)
+
 
 class ChatHistoryAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -316,19 +331,29 @@ class CombinedChatOverviewAPIView(APIView):
 
         base_url = request.build_absolute_uri('/')[:-1]
 
-        # --- Get pinned chats ---
+        # --- GET SEARCH PARAM ---
+        search = request.query_params.get("search", "").strip().lower()
+
         pinned_chat_ids = set(
             PinnedChat.objects.filter(user=user).values_list('chat_group_id', flat=True)
         )
 
         # --- One-to-One Chats ---
-        one_to_one_chats = ChatGroup.objects.filter(
+        one_to_one_queryset = ChatGroup.objects.filter(
             is_group=False,
             members=user,
             messages__isnull=False
         ).annotate(
             last_message_time=Max('messages__timestamp')
-        ).order_by('-last_message_time').distinct()
+        ).distinct()
+
+        # 🔍 Apply search filter for one-to-one user names
+        if search:
+            one_to_one_queryset = one_to_one_queryset.filter(
+                members__full_name__icontains=search
+            ).exclude(members=user)
+
+        one_to_one_chats = one_to_one_queryset.order_by('-last_message_time')
 
         one_to_one_data = []
         for chat in one_to_one_chats:
@@ -336,17 +361,16 @@ class CombinedChatOverviewAPIView(APIView):
             if not other:
                 continue
 
+            # If search exists & user name doesn't match, skip (extra safety)
+            if search and search not in other.get_full_name().lower():
+                continue
+
             profile = getattr(other, 'userprofile', None)
             image_url = base_url + profile.profile_picture.url if profile and profile.profile_picture else None
 
             last_message = chat.messages.order_by('-timestamp').first()
-            unseen_count = chat.messages.exclude(
-                seen_statuses__user=user
-            ).exclude(
-                sender=user
-            ).count()
+            unseen_count = chat.messages.exclude(seen_statuses__user=user).exclude(sender=user).count()
 
-            # 🟢 Handle last message: text or media
             if last_message:
                 if last_message.media:
                     last_message_display = base_url + last_message.media.url
@@ -373,12 +397,17 @@ class CombinedChatOverviewAPIView(APIView):
                 "unseen_count": unseen_count,
             })
 
+
         # --- Group Chats ---
-        group_chats = (
-            ChatGroup.objects.filter(is_group=True, members=user)
-            .annotate(last_message_time=Coalesce(Max('messages__timestamp'), F('created_at')))
-            .order_by('-last_message_time')
+        group_queryset = ChatGroup.objects.filter(is_group=True, members=user).annotate(
+            last_message_time=Coalesce(Max('messages__timestamp'), F('created_at'))
         )
+
+        # 🔍 Apply search filter for group name
+        if search:
+            group_queryset = group_queryset.filter(name__icontains=search)
+
+        group_chats = group_queryset.order_by('-last_message_time')
 
         group_data = []
         for group in group_chats:
@@ -399,11 +428,7 @@ class CombinedChatOverviewAPIView(APIView):
                 message_type = None
 
             group_image_url = base_url + group.group_profile_picture.url if group.group_profile_picture else None
-            unseen_count = group.messages.exclude(
-                seen_statuses__user=user
-            ).exclude(
-                sender=user
-            ).count()
+            unseen_count = group.messages.exclude(seen_statuses__user=user).exclude(sender=user).count()
 
             group_data.append({
                 "chat_group_id": group.id,
@@ -421,6 +446,7 @@ class CombinedChatOverviewAPIView(APIView):
             "one_to_one_chats": one_to_one_data,
             "group_chats": group_data,
         })
+
 
 MAX_PINNED_CHATS = 4 
 
