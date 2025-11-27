@@ -233,6 +233,7 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
     phone_number = serializers.CharField(source='user.phone_number', read_only=True)  # fetch from CustomUser
     employee_id = serializers.CharField(source='user.level_id.employee_id', read_only=True)
     profile_picture_url = serializers.SerializerMethodField()
+    can_access_web_app = serializers.SerializerMethodField()  
 
     class Meta:
         model = UserProfile
@@ -243,7 +244,10 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             'phone_number',  # ✅ now fetched from CustomUser
             'bio',
             'profile_picture_url',
+            'can_access_web_app'
         ]
+    def get_can_access_web_app(self, obj):
+        return obj.user.can_access_web_app
 
     def get_profile_picture_url(self, obj):
         request = self.context.get('request')
