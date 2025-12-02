@@ -5,6 +5,7 @@ from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from chat.models import UserStatus
 
 from .models import ChatGroup, Message, MessageSeenStatus, MessageReaction
 
@@ -69,6 +70,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.handle_seen_status(data)
             elif message_type == 'reaction':
                 await self.handle_reaction(data)
+
+            elif message_type == "typing":
+                await self.handle_typing(data)
+            elif message_type == "typing_stop":
+                await self.handle_typing_stop(data)
+
             else:
                 print(f"[Error] Unknown message type received: {message_type}")
 
@@ -84,16 +91,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def handle_new_message(self, data):
         message = data.get('message')
         sender_id = data.get('sender_id')
-        
+
         if not message:
             print(f"[Error] Empty message received.")
             return
-            
+
         if message and sender_id:
+            # Save message
             message_obj = await self.save_message(self.chat_group_id, sender_id, message)
+
             if message_obj:
                 decrypted_content = await self.get_message_content(message_obj)
 
+                # 🔹 1. Broadcast normal chat message inside the chat room
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
@@ -104,9 +114,45 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'timestamp': message_obj.timestamp.isoformat(),
                     }
                 )
-                
-                # 🔹 Send Push Notification - Fire and forget (don't block message delivery)
-                asyncio.create_task(self.send_push_notification(message_obj, decrypted_content))
+
+                # 🔹 2. Notify sender's inbox WS (PresenceConsumer)
+                await self.channel_layer.group_send(
+                    f"user_{sender_id}",
+                    {
+                        "type": "chat_list_update",
+                        "chat_group_id": self.chat_group_id,
+                        "last_message": decrypted_content,
+                        "last_message_time": message_obj.timestamp.isoformat(),
+                        "sender_id": sender_id,
+                    }
+                )
+
+                # 🔹 3. Notify all other group members' inbox WS
+                members = await database_sync_to_async(
+                    lambda: list(
+                        message_obj.thread.members.exclude(id=sender_id)
+                        .values_list("id", flat=True)
+                    )
+                )()
+
+                for member_id in members:
+                    await self.channel_layer.group_send(
+                        f"user_{member_id}",
+                        {
+                            "type": "chat_list_update",
+                            "chat_group_id": self.chat_group_id,
+                            "last_message": decrypted_content,
+                            "last_message_time": message_obj.timestamp.isoformat(),
+                            "sender_id": sender_id,
+                        }
+                    )
+
+                # 🔹 4. Push Notification (non-blocking)
+                asyncio.create_task(
+                    self.send_push_notification(
+                        message_obj, decrypted_content
+                    )
+                )
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
@@ -154,6 +200,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "message_deleted",
             "message_id": event["message_id"],
+        }))
+
+    async def handle_typing(self, data):
+        user_id = data.get("user_id")
+
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "typing_event",
+                "user_id": user_id,
+                "is_typing": True
+            }
+        )
+
+    async def handle_typing_stop(self, data):
+        user_id = data.get("user_id")
+    
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "typing_event",
+                "user_id": user_id,
+                "is_typing": False
+            }
+        )
+    
+    async def typing_event(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "typing",
+            "user_id": event["user_id"],
+            "is_typing": event["is_typing"]
         }))
 
     
@@ -406,3 +483,57 @@ class QRLoginConsumer(AsyncWebsocketConsumer):
     # Event received when backend approves QR
     async def qr_login_approved(self, event):
         await self.send(text_data=json.dumps(event["data"]))
+
+
+
+class PresenceConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope["user"]
+
+        if not self.user.is_authenticated:
+            return await self.close()
+
+        await self.set_user_online()
+
+        # USER GLOBAL ROOM
+        self.user_room = f"user_{self.user.id}"
+
+        await self.channel_layer.group_add(
+            self.user_room,
+            self.channel_name
+        )
+
+        await self.accept()
+
+
+    async def disconnect(self, code):
+        await self.set_user_offline()
+        await self.channel_layer.group_discard(
+            self.user_room,
+            self.channel_name
+        )
+
+
+    @database_sync_to_async
+    def set_user_online(self):
+        status, _ = UserStatus.objects.get_or_create(user=self.user)
+        status.is_online = True
+        status.last_active = timezone.now()
+        status.save()
+
+    @database_sync_to_async
+    def set_user_offline(self):
+        if hasattr(self.user, "status"):
+            self.user.status.is_online = False
+            self.user.status.last_active = timezone.now()
+            self.user.status.save()
+
+    async def chat_list_update(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "chat_list_update",
+            "chat_group_id": event["chat_group_id"],
+            "last_message": event["last_message"],
+            "last_message_time": event["last_message_time"],
+            "sender_id": event["sender_id"],
+        }))
+

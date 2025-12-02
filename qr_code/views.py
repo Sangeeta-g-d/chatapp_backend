@@ -68,6 +68,18 @@ def approve_qr_session(request):
                         status=status.HTTP_400_BAD_REQUEST)
 
     user = request.user
+
+    # ❗ NEW VALIDATION — Check Access Permission
+    if not user.can_access_web_app:
+        return Response(
+            {
+                "detail": "You are not allowed to access the web application.",
+                "code": "access_denied"
+            },
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    # Mark QR approved
     session.mark_approved(user)
 
     # Tokens
@@ -80,7 +92,7 @@ def approve_qr_session(request):
     if profile and profile.profile_picture:
         profile_pic_url = f"{request.scheme}://{request.get_host()}{profile.profile_picture.url}"
 
-    # Final payload to send through WebSocket
+    # Final WebSocket payload
     login_payload = {
         "event": "qr_login_success",
         "data": {
@@ -96,7 +108,7 @@ def approve_qr_session(request):
         }
     }
 
-    # Send over WebSocket
+    # Send via WebSocket
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
         f"qr_{session_id}",
