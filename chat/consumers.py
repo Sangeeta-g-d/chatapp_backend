@@ -537,3 +537,8 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             "sender_id": event["sender_id"],
         }))
 
+    async def permission_update(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "permission_update",
+            "permissions": event.get("data")
+        }))

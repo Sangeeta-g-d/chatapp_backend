@@ -184,6 +184,11 @@ def email_center(request):
                 # Save the object
                 email_obj.save()
                 print("Email updated successfully!")
+                from .ws import send_permission_update
+                affected_users = CustomUser.objects.filter(level_id=email_obj)
+
+                for user in affected_users:
+                    send_permission_update(user.id)
                 
                 toast = {"text": "Email details updated successfully!", "type": "success"}
                 
