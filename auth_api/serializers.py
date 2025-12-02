@@ -101,16 +101,21 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data['level_id'] = email_center
         user = CustomUser.objects.create_user(**validated_data)
         return user
-
+    
+    
 class CustomLoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     phone_number = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
 
+    # NEW FIELD
+    can_access_web = serializers.BooleanField(required=False, default=False)
+
     def validate(self, attrs):
         email = attrs.get('email')
         phone_number = attrs.get('phone_number')
         password = attrs.get('password')
+        requested_web_access = attrs.get('can_access_web', False)
 
         if not password or (not email and not phone_number):
             raise serializers.ValidationError("Email or phone number and password are required.")
@@ -128,6 +133,13 @@ class CustomLoginSerializer(serializers.Serializer):
 
         if not user.is_active:
             raise serializers.ValidationError("This account is inactive.")
+
+        # NEW VALIDATION: If mobile requests web-access login
+        if requested_web_access:
+            if not user.can_access_web_app:
+                raise serializers.ValidationError(
+                    "You are not allowed to access the web application."
+                )
 
         attrs['user'] = user
         return attrs
