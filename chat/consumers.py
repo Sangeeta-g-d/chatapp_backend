@@ -485,17 +485,25 @@ class QRLoginConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps(event["data"]))
 
 
-
 class PresenceConsumer(AsyncWebsocketConsumer):
+
     async def connect(self):
         self.user = self.scope["user"]
 
         if not self.user.is_authenticated:
             return await self.close()
 
+        # GLOBAL ONLINE USERS GROUP
+        self.global_group = "online_users"
+
+        await self.channel_layer.group_add(
+            self.global_group,
+            self.channel_name
+        )
+
         await self.set_user_online()
 
-        # USER GLOBAL ROOM
+        # USER PERSONAL ROOM (existing)
         self.user_room = f"user_{self.user.id}"
 
         await self.channel_layer.group_add(
@@ -503,14 +511,42 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
+        # Broadcast to all users that this user is now online
+        await self.channel_layer.group_send(
+            self.global_group,
+            {
+                "type": "user_status_update",
+                "user_id": self.user.id,
+                "is_online": True,
+            }
+        )
+
         await self.accept()
 
 
     async def disconnect(self, code):
+
+        # Remove from global online user group
+        await self.channel_layer.group_discard(
+            self.global_group,
+            self.channel_name
+        )
+
         await self.set_user_offline()
+
         await self.channel_layer.group_discard(
             self.user_room,
             self.channel_name
+        )
+
+        # Broadcast user offline
+        await self.channel_layer.group_send(
+            self.global_group,
+            {
+                "type": "user_status_update",
+                "user_id": self.user.id,
+                "is_online": False,
+            }
         )
 
 
@@ -521,12 +557,29 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         status.last_active = timezone.now()
         status.save()
 
+
     @database_sync_to_async
     def set_user_offline(self):
         if hasattr(self.user, "status"):
             self.user.status.is_online = False
             self.user.status.last_active = timezone.now()
             self.user.status.save()
+
+
+    # ------------------------------------------
+    # NEW HANDLER FOR GLOBAL ONLINE/OFFLINE EVENT
+    # ------------------------------------------
+    async def user_status_update(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "user_status_update",
+            "user_id": event["user_id"],
+            "is_online": event["is_online"],
+        }))
+
+
+    # ------------------------------------------
+    # Existing functionality below (UNCHANGED)
+    # ------------------------------------------
 
     async def chat_list_update(self, event):
         await self.send(text_data=json.dumps({
