@@ -72,9 +72,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         if message and sender_id:
+            # save_message implemented below
             message_obj = await self.save_message(self.chat_group_id, sender_id, message)
 
             if message_obj:
+                # get_message_content implemented below
                 decrypted_content = await self.get_message_content(message_obj)
 
                 # Broadcast normal chat message to chat room
@@ -253,7 +255,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if not notification_data:
                 print("[FCM] No notification data retrieved")
                 return
-            
+           
             sender_name = notification_data['sender_name']
             recipients_devices = notification_data['recipients_devices']
             sender_id = notification_data['sender_id'] 
@@ -317,6 +319,66 @@ class ChatConsumer(AsyncWebsocketConsumer):
             import traceback; traceback.print_exc()
             return None
 
+    # -------------------- NEW: Save Message & Get Content Helpers --------------------
+    # These are the missing methods that caused the AttributeError.
+    # They run DB operations through database_sync_to_async to be safe in async context.
+
+    @database_sync_to_async
+    def save_message(self, chat_group_id, sender_id, raw_message):
+        """
+        Create and save a Message instance for the chat group and return it.
+        - chat_group_id: string or int (from URL)
+        - sender_id: int
+        - raw_message: plaintext message (will be encrypted via Message.set_content)
+        Returns Message instance or None on failure.
+        """
+        try:
+            # Safely fetch chat group and user
+            thread = ChatGroup.objects.get(id=chat_group_id)
+            sender = User.objects.get(id=sender_id)
+
+            # Create message
+            msg = Message(thread=thread, sender=sender)
+            # Use model's set_content helper (assumed to encrypt)
+            if hasattr(msg, "set_content"):
+                msg.set_content(raw_message)
+            else:
+                # Fallback: store raw text in content_encrypted if set_content missing
+                msg.content_encrypted = raw_message
+
+            msg.save()
+
+            # If you need to prefetch related fields used later, do it here
+            msg.thread = thread  # ensure thread attribute available
+            return msg
+        except ChatGroup.DoesNotExist:
+            print(f"[Error] ChatGroup with id {chat_group_id} does not exist.")
+        except User.DoesNotExist:
+            print(f"[Error] User with id {sender_id} does not exist.")
+        except Exception as e:
+            print(f"[Error] Saving message failed: {e}")
+            import traceback; traceback.print_exc()
+        return None
+
+    @database_sync_to_async
+    def get_message_content(self, message_obj):
+        """
+        Given a Message model instance (or object with .id), fetch fresh and return decrypted content.
+        Returns string (possibly empty) or None.
+        """
+        try:
+            # Re-fetch from DB to avoid stale/async issues
+            msg = Message.objects.get(id=message_obj.id)
+            if hasattr(msg, "get_content"):
+                return msg.get_content() or ""
+            # fallback to content_encrypted if decryption helper missing
+            return getattr(msg, "content_encrypted", "") or ""
+        except Message.DoesNotExist:
+            print(f"[Error] Message with id {getattr(message_obj, 'id', None)} does not exist.")
+        except Exception as e:
+            print(f"[Error] Getting message content failed: {e}")
+            import traceback; traceback.print_exc()
+        return ""
 
 class QRLoginConsumer(AsyncWebsocketConsumer):
 
