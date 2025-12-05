@@ -151,7 +151,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not media_url:
             print("[Error] Media notification without media_url")
             return
-
+        # Broadcast media message to chat room
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -163,6 +163,49 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'timestamp': timestamp,
             }
         )
+
+        # Also update inbox/chat list for sender and other members (so media appears in inbox preview)
+        try:
+            last_message_preview = message or 'Media'
+            last_message_time = timestamp or timezone.now().isoformat()
+
+            # Notify sender's inbox (their personal user_{id} group)
+            await self.channel_layer.group_send(
+                f"user_{sender_id}",
+                {
+                    "type": "chat_list_update",
+                    "chat_group_id": self.chat_group_id,
+                    "last_message": last_message_preview,
+                    "last_message_time": last_message_time,
+                    "sender_id": sender_id,
+                    "is_media": True,
+                    "media_url": media_url,
+                }
+            )
+
+            # Fetch other member ids asynchronously
+            members = await database_sync_to_async(
+                lambda: list(
+                    ChatGroup.objects.get(id=self.chat_group_id).members.exclude(id=sender_id)
+                    .values_list("id", flat=True)
+                )
+            )()
+
+            for member_id in members:
+                await self.channel_layer.group_send(
+                    f"user_{member_id}",
+                    {
+                        "type": "chat_list_update",
+                        "chat_group_id": self.chat_group_id,
+                        "last_message": last_message_preview,
+                        "last_message_time": last_message_time,
+                        "sender_id": sender_id,
+                        "is_media": True,
+                        "media_url": media_url,
+                    }
+                )
+        except Exception as e:
+            print(f"[Error] notifying inbox for media message: {e}")
         
     async def chat_media_message(self, event):
         await self.send(text_data=json.dumps({
