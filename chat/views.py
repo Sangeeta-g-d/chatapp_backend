@@ -1,5 +1,6 @@
 # views.py
 from re import search
+from urllib import request
 from rest_framework.views import APIView
 from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated
@@ -622,6 +623,23 @@ class MediaMessageUploadAPIView(APIView):
                     "timestamp": message.timestamp.isoformat(),
                 }
             )
+
+            last_message_preview = message.get_content() or "Media"
+            media_url = request.build_absolute_uri(message.media.url) if message.media else None
+
+            for member in chat_group.members.all():
+                async_to_sync(channel_layer.group_send)(
+                    f"user_{member.id}",
+                    {
+                        "type": "chat_list_update",
+                        "chat_group_id": chat_group.id,
+                        "last_message": last_message_preview,
+                        "last_message_time": message.timestamp.isoformat(),
+                        "sender_id": request.user.id,
+                        "is_media": True,
+                        "media_url": media_url,
+                    }
+                )
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

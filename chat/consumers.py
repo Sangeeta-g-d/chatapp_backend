@@ -554,6 +554,10 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             "last_message": event["last_message"],
             "last_message_time": event["last_message_time"],
             "sender_id": event["sender_id"],
+    
+            # 🔥 Add these two:
+            "is_media": event.get("is_media", False),
+            "media_url": event.get("media_url"),
         }))
 
     async def permission_update(self, event):
