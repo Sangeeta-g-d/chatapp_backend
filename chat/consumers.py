@@ -457,25 +457,18 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         if not self.user.is_authenticated:
             return await self.close()
 
-        # GLOBAL ONLINE USERS GROUP
+        # GLOBAL ONLINE GROUP
         self.global_group = "online_users"
+        await self.channel_layer.group_add(self.global_group, self.channel_name)
 
-        await self.channel_layer.group_add(
-            self.global_group,
-            self.channel_name
-        )
+        # USER PERSONAL ROOM
+        self.user_room = f"user_{self.user.id}"
+        await self.channel_layer.group_add(self.user_room, self.channel_name)
 
+        # DB update
         await self.set_user_online()
 
-        # USER PERSONAL ROOM (existing)
-        self.user_room = f"user_{self.user.id}"
-
-        await self.channel_layer.group_add(
-            self.user_room,
-            self.channel_name
-        )
-
-        # Broadcast to all users that this user is now online
+        # Broadcast online status
         await self.channel_layer.group_send(
             self.global_group,
             {
@@ -486,25 +479,28 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             }
         )
 
+        # Accept WebSocket
         await self.accept()
+
+        # Start heartbeat every 20 seconds
+        self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
 
 
     async def disconnect(self, code):
+        # Stop heartbeat loop
+        try:
+            self.heartbeat_task.cancel()
+        except:
+            pass
 
-        # Remove from global online user group
-        await self.channel_layer.group_discard(
-            self.global_group,
-            self.channel_name
-        )
-
+        # DB update
         await self.set_user_offline()
 
-        await self.channel_layer.group_discard(
-            self.user_room,
-            self.channel_name
-        )
+        # Remove from groups
+        await self.channel_layer.group_discard(self.global_group, self.channel_name)
+        await self.channel_layer.group_discard(self.user_room, self.channel_name)
 
-        # Broadcast user offline
+        # Broadcast offline status
         await self.channel_layer.group_send(
             self.global_group,
             {
@@ -516,13 +512,27 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         )
 
 
+    # ---------------------------
+    # HEARTBEAT (ANTI TIMEOUT)
+    # ---------------------------
+    async def send_heartbeat(self):
+        while True:
+            try:
+                await self.send(json.dumps({"type": "ping"}))
+                await asyncio.sleep(20)
+            except Exception:
+                break
+
+
+    # ---------------------------
+    # DATABASE STATUS HELPERS
+    # ---------------------------
     @database_sync_to_async
     def set_user_online(self):
         status, _ = UserStatus.objects.get_or_create(user=self.user)
         status.is_online = True
         status.last_active = timezone.now()
         status.save()
-
 
     @database_sync_to_async
     def set_user_offline(self):
@@ -532,9 +542,9 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             self.user.status.save()
 
 
-    # ------------------------------------------
-    # NEW HANDLER FOR GLOBAL ONLINE/OFFLINE EVENT
-    # ------------------------------------------
+    # ---------------------------
+    # ONLINE/OFFLINE BROADCAST
+    # ---------------------------
     async def user_status_update(self, event):
         await self.send(text_data=json.dumps({
             "type": "user_status_update",
@@ -544,10 +554,9 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         }))
 
 
-    # ------------------------------------------
-    # Existing functionality below (UNCHANGED)
-    # ------------------------------------------
-
+    # ---------------------------
+    # EXISTING FEATURE HANDLERS
+    # ---------------------------
     async def chat_list_update(self, event):
         await self.send(text_data=json.dumps({
             "type": "chat_list_update",
@@ -555,8 +564,6 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             "last_message": event["last_message"],
             "last_message_time": event["last_message_time"],
             "sender_id": event["sender_id"],
-    
-            # 🔥 Add these two:
             "is_media": event.get("is_media", False),
             "media_url": event.get("media_url"),
         }))
