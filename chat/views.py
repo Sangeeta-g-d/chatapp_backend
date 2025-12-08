@@ -315,7 +315,6 @@ def add_reaction_to_message(request):
         })
     except Message.DoesNotExist:
         return Response({"error": "Message not found"}, status=404)
-
 class CombinedChatOverviewAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -390,9 +389,14 @@ class CombinedChatOverviewAPIView(APIView):
                 else:
                     last_message_display = None
                     message_type = None
+                
+                # Convert last_message_time to Saudi time string
+                saudi_timestamp = to_saudi_time(last_message.timestamp)
+                last_message_time_str = saudi_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi_timestamp else None
             else:
                 last_message_display = None
                 message_type = None
+                last_message_time_str = None
 
             one_to_one_data.append({
                 "chat_group_id": chat.id,
@@ -401,7 +405,7 @@ class CombinedChatOverviewAPIView(APIView):
                 "profile_picture": image_url,
                 "last_message": last_message_display,
                 "last_message_type": message_type,
-                "last_message_time": last_message.timestamp if last_message else None,
+                "last_message_time": last_message_time_str,  # Saudi time string
                 "is_pinned": chat.id in pinned_chat_ids,
                 "unseen_count": unseen_count,
             })
@@ -432,7 +436,14 @@ class CombinedChatOverviewAPIView(APIView):
                 else:
                     last_message_text = None
                     message_type = None
+                
+                # Convert last_message_time to Saudi time string
+                saudi_timestamp = to_saudi_time(last_message.timestamp)
+                last_message_time_str = saudi_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi_timestamp else None
             else:
+                # For groups with no messages, use created_at time in Saudi time
+                saudi_timestamp = to_saudi_time(group.created_at)
+                last_message_time_str = saudi_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi_timestamp else None
                 last_message_text = None
                 message_type = None
 
@@ -445,7 +456,7 @@ class CombinedChatOverviewAPIView(APIView):
                 "member_count": group.members.count(),
                 "last_message": last_message_text,
                 "last_message_type": message_type,
-                "last_message_time": last_message.timestamp if last_message else None,
+                "last_message_time": last_message_time_str,  # Saudi time string
                 "group_profile_picture": group_image_url,
                 "is_pinned": group.id in pinned_chat_ids,
                 "unseen_count": unseen_count,
@@ -455,7 +466,6 @@ class CombinedChatOverviewAPIView(APIView):
             "one_to_one_chats": one_to_one_data,
             "group_chats": group_data,
         })
-
 
 MAX_PINNED_CHATS = 4 
 
