@@ -1,10 +1,12 @@
 import json
 import asyncio
+import pytz
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.utils.timezone import localtime
 from chat.models import UserStatus
 
 from .models import ChatGroup, Message, MessageSeenStatus, MessageReaction
@@ -79,7 +81,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 # get_message_content implemented below
                 decrypted_content = await self.get_message_content(message_obj)
 
-                # Broadcast normal chat message to chat room
+                # Broadcast normal chat message to chat room (with Saudi timezone)
+                saudi_tz = pytz.timezone('Asia/Riyadh')
+                timestamp_saudi = localtime(message_obj.timestamp, saudi_tz).strftime("%Y-%m-%d %H:%M:%S")
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
@@ -87,18 +91,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'message': decrypted_content,
                         'sender_id': sender_id,
                         'message_id': message_obj.id,
-                        'timestamp': message_obj.timestamp.isoformat(),
+                        'timestamp': timestamp_saudi,
                     }
                 )
 
-                # Notify sender inbox
+                # Notify sender inbox (with Saudi timezone)
+                saudi_tz = pytz.timezone('Asia/Riyadh')
+                last_msg_time_saudi = localtime(message_obj.timestamp, saudi_tz).strftime("%Y-%m-%d %H:%M:%S")
                 await self.channel_layer.group_send(
                     f"user_{sender_id}",
                     {
                         "type": "chat_list_update",
                         "chat_group_id": self.chat_group_id,
                         "last_message": decrypted_content,
-                        "last_message_time": message_obj.timestamp.isoformat(),
+                        "last_message_time": last_msg_time_saudi,
                         "sender_id": sender_id,
                     }
                 )
@@ -118,7 +124,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             "type": "chat_list_update",
                             "chat_group_id": self.chat_group_id,
                             "last_message": decrypted_content,
-                            "last_message_time": message_obj.timestamp.isoformat(),
+                            "last_message_time": last_msg_time_saudi,
                             "sender_id": sender_id,
                         }
                     )
@@ -166,8 +172,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Also update inbox/chat list for sender and other members (so media appears in inbox preview)
         try:
+            saudi_tz = pytz.timezone('Asia/Riyadh')
             last_message_preview = message or 'Media'
-            last_message_time = timestamp or timezone.now().isoformat()
+            # Convert timestamp to Saudi timezone format
+            if timestamp:
+                last_message_time = timestamp
+            else:
+                last_message_time = localtime(timezone.now(), saudi_tz).strftime("%Y-%m-%d %H:%M:%S")
 
             # Notify sender's inbox (their personal user_{id} group)
             await self.channel_layer.group_send(
