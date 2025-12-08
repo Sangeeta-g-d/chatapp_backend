@@ -20,7 +20,7 @@ from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model
 from .firebase_utils import send_fcm_notification  # your helper function
 from feeds.pagination import SafePageNumberPagination
-
+from .utils import to_saudi_time
 
 User = get_user_model()   # ✅ This ensures User is the actual model, not a string
 
@@ -148,7 +148,7 @@ class ChatHistoryAPIView(APIView):
                 "sender_name": msg.sender.full_name,
                 "message": msg.get_content(),
                 "media": request.build_absolute_uri(msg.media.url) if msg.media else None,
-                "timestamp": msg.timestamp,
+                "timestamp": to_saudi_time(msg.timestamp),
                 "seen_status": seen_data,
                 "is_seen": msg.seen_statuses.filter(user=current_user).exists(),
             })
