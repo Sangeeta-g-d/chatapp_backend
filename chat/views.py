@@ -121,25 +121,23 @@ class ChatHistoryAPIView(APIView):
             thread=chat_group
         ).prefetch_related(
             'seen_statuses',
-            # 'reactions',  # 🚫 Commented out
             'sender'
         ).order_by('-id')
 
         paginator = SafePageNumberPagination()
-        paginator.page_size = 20                      # default page size
-        paginator.page_query_param = "page"           # allow ?page=NN
-        paginator.page_size_query_param = "page_size" # optional ?page_size=
+        paginator.page_size = 20
+        paginator.page_query_param = "page"
+        paginator.page_size_query_param = "page_size"
         paginator.max_page_size = 100
 
-        # paginate_queryset will return an actual page's object_list or an empty list
-        # (SafePageNumberPagination handles invalid pages and sets paginator.page accordingly)
         page_messages = paginator.paginate_queryset(messages_qs, request)
         page_messages = list(reversed(page_messages))
         messages_data = []
+        
         for msg in page_messages:
             seen_data = [{
                 "user_id": seen.user.id,
-                "seen_at": seen.seen_at
+                "seen_at": to_saudi_time(seen.seen_at)  # Convert to Saudi time
             } for seen in msg.seen_statuses.all()]
 
             messages_data.append({
@@ -148,17 +146,16 @@ class ChatHistoryAPIView(APIView):
                 "sender_name": msg.sender.full_name,
                 "message": msg.get_content(),
                 "media": request.build_absolute_uri(msg.media.url) if msg.media else None,
-                "timestamp": to_saudi_time(msg.timestamp),
+                "timestamp": to_saudi_time(msg.timestamp),  # Convert to Saudi time
                 "seen_status": seen_data,
                 "is_seen": msg.seen_statuses.filter(user=current_user).exists(),
             })
 
-        # compute pagination meta without breaking response on invalid page
+        # compute pagination meta
         try:
             total_count = paginator.page.paginator.count
             current_page_number = getattr(paginator.page, "number", 1)
         except Exception:
-            # fallback: return correct total and requested page param
             total_count = messages_qs.count()
             current_page_number = int(request.query_params.get("page", 1) or 1)
 
@@ -186,7 +183,7 @@ class ChatHistoryAPIView(APIView):
                 )
             } if receiver else None,
             "messages": messages_data,
-            "pagination": {                                 # optional meta (keeps response shape)
+            "pagination": {
                 "total_count": total_count,
                 "page": current_page_number,
                 "page_size": paginator.get_page_size(request),
