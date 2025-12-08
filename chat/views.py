@@ -135,10 +135,18 @@ class ChatHistoryAPIView(APIView):
         messages_data = []
         
         for msg in page_messages:
-            seen_data = [{
-                "user_id": seen.user.id,
-                "seen_at": to_saudi_time(seen.seen_at)  # Convert to Saudi time
-            } for seen in msg.seen_statuses.all()]
+            # Convert to Saudi time and format as string
+            saudi_timestamp = to_saudi_time(msg.timestamp)
+            timestamp_str = saudi_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi_timestamp else None
+            
+            seen_data = []
+            for seen in msg.seen_statuses.all():
+                saudi_seen_at = to_saudi_time(seen.seen_at)
+                seen_at_str = saudi_seen_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi_seen_at else None
+                seen_data.append({
+                    "user_id": seen.user.id,
+                    "seen_at": seen_at_str  # Formatted string
+                })
 
             messages_data.append({
                 "id": msg.id,
@@ -146,7 +154,7 @@ class ChatHistoryAPIView(APIView):
                 "sender_name": msg.sender.full_name,
                 "message": msg.get_content(),
                 "media": request.build_absolute_uri(msg.media.url) if msg.media else None,
-                "timestamp": to_saudi_time(msg.timestamp),  # Convert to Saudi time
+                "timestamp": timestamp_str,  # Formatted string
                 "seen_status": seen_data,
                 "is_seen": msg.seen_statuses.filter(user=current_user).exists(),
             })
