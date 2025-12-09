@@ -47,6 +47,18 @@ def format_saudi_time(dt, format_str="%Y-%m-%d %H:%M:%S"):
         return saudi_time.strftime(format_str)
     return None
 
+from datetime import datetime
+
 def saudi_timestamp(dt):
+    if dt is None:
+        return None
+    
+    # if dt is already a string — try parsing
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", ""))
+        except:
+            return dt    # fallback: just return original string
+    
     saudi = to_saudi_time(dt)
     return saudi.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi else None
