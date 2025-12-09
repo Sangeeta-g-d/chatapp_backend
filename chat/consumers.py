@@ -475,7 +475,7 @@ class PresenceConsumer(AsyncWebsocketConsumer):
                 "type": "user_status_update",
                 "user_id": self.user.id,
                 "is_online": True,
-                "last_active": timezone.now().isoformat(),
+                "last_active": to_saudi_time(timezone.now()).isoformat(),
             }
         )
 
@@ -507,7 +507,7 @@ class PresenceConsumer(AsyncWebsocketConsumer):
                 "type": "user_status_update",
                 "user_id": self.user.id,
                 "is_online": False,
-                "last_active": timezone.now().isoformat(),
+                "last_active": to_saudi_time(timezone.now()).isoformat(),
             }
         )
 
@@ -531,14 +531,14 @@ class PresenceConsumer(AsyncWebsocketConsumer):
     def set_user_online(self):
         status, _ = UserStatus.objects.get_or_create(user=self.user)
         status.is_online = True
-        status.last_active = timezone.now()
+        status.last_active = to_saudi_time(timezone.now())
         status.save()
 
     @database_sync_to_async
     def set_user_offline(self):
         if hasattr(self.user, "status"):
             self.user.status.is_online = False
-            self.user.status.last_active = timezone.now()
+            self.user.status.last_active = to_saudi_time(timezone.now())
             self.user.status.save()
 
 
