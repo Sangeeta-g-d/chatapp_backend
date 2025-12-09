@@ -563,7 +563,7 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             "type": "chat_list_update",
             "chat_group_id": event["chat_group_id"],
             "last_message": event["last_message"],
-            "last_message_time": saudi_timestamp(event["last_message_time"]),
+            "last_message_time": (event["last_message_time"]),
             "sender_id": event["sender_id"],
             "is_media": event.get("is_media", False),
             "media_url": event.get("media_url"),
