@@ -46,3 +46,7 @@ def format_saudi_time(dt, format_str="%Y-%m-%d %H:%M:%S"):
     if saudi_time:
         return saudi_time.strftime(format_str)
     return None
+
+def saudi_timestamp(dt):
+    saudi = to_saudi_time(dt)
+    return saudi.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if saudi else None

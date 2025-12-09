@@ -8,7 +8,7 @@ from django.utils import timezone
 from chat.models import UserStatus
 from .utils import to_saudi_time
 from .models import ChatGroup, Message, MessageSeenStatus, MessageReaction
-
+from .utils import saudi_timestamp
 User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -507,7 +507,8 @@ class PresenceConsumer(AsyncWebsocketConsumer):
                 "type": "user_status_update",
                 "user_id": self.user.id,
                 "is_online": False,
-                "last_active": to_saudi_time(timezone.now()).isoformat(),
+                "last_active": saudi_timestamp(timezone.now()),
+
             }
         )
 
