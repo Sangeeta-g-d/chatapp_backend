@@ -27,6 +27,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             await self.accept()
+            await self.send_user_last_seen_status()
 
     async def disconnect(self, close_code):
         print(f"[WebSocket] User {self.user.id} disconnected from chat group {self.chat_group_id}")
@@ -275,6 +276,51 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'user_id': event['user_id'],
         }))
 
+    async def send_user_last_seen_status(self):
+        other_user = await self.get_other_chat_user()
+
+        if not other_user:
+            return
+
+        last_seen = await self.get_user_last_seen(other_user.id)
+
+        if last_seen:
+            # Convert to Saudi time
+            saudi_last_seen = to_saudi_time(last_seen).isoformat()
+
+            await self.send(text_data=json.dumps({
+                "type": "last_seen",
+                "user_id": other_user.id,
+                "last_seen": saudi_last_seen
+            }))
+
+
+    @database_sync_to_async
+    def get_user_last_seen(self, user_id):
+        try:
+            status = UserStatus.objects.get(user_id=user_id)
+
+            # User offline → return last_active
+            if not status.is_online:
+                return status.last_active
+
+            # User auto-offline after 5 min
+            if not status.auto_offline:
+                return status.last_active
+
+            # User online
+            return None
+        except UserStatus.DoesNotExist:
+            return None
+        
+
+    @database_sync_to_async
+    def get_other_chat_user(self):
+        try:
+            group = ChatGroup.objects.get(id=self.chat_group_id)
+            return group.members.exclude(id=self.user.id).first()
+        except:
+            return None
     @database_sync_to_async
     def save_seen_status(self, message_id, user_id):
         try:
