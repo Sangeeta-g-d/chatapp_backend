@@ -474,6 +474,7 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             {
                 "type": "user_status_update",
                 "user_id": self.user.id,
+                "user_name": self.user.full_name,
                 "is_online": True,
                 "last_active": saudi_timestamp(timezone.now()),
             }
@@ -506,6 +507,7 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             {
                 "type": "user_status_update",
                 "user_id": self.user.id,
+                "user_name": self.user.full_name,
                 "is_online": False,
                 "last_active": saudi_timestamp(timezone.now()),
 
@@ -551,6 +553,7 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             "type": "user_status_update",
             "user_id": event["user_id"],
             "is_online": event["is_online"],
+            "user_name": event["user_name"],
             "last_active": event.get("last_active"),
         }))
 
