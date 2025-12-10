@@ -468,7 +468,13 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         # DB update
         await self.set_user_online()
 
-        # Broadcast online status
+        # Accept WebSocket
+        await self.accept()
+
+        # 🔥 Send currently online users to this new user
+        await self.send_online_users_list()
+
+        # Broadcast online status to others
         await self.channel_layer.group_send(
             self.global_group,
             {
@@ -480,28 +486,21 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             }
         )
 
-        # Accept WebSocket
-        await self.accept()
-
         # Start heartbeat every 20 seconds
         self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
 
 
     async def disconnect(self, code):
-        # Stop heartbeat loop
         try:
             self.heartbeat_task.cancel()
         except:
             pass
 
-        # DB update
         await self.set_user_offline()
 
-        # Remove from groups
         await self.channel_layer.group_discard(self.global_group, self.channel_name)
         await self.channel_layer.group_discard(self.user_room, self.channel_name)
 
-        # Broadcast offline status
         await self.channel_layer.group_send(
             self.global_group,
             {
@@ -510,14 +509,12 @@ class PresenceConsumer(AsyncWebsocketConsumer):
                 "user_name": self.user.full_name,
                 "is_online": False,
                 "last_active": saudi_timestamp(timezone.now()),
-
             }
         )
 
-
-    # ---------------------------
-    # HEARTBEAT (ANTI TIMEOUT)
-    # ---------------------------
+    # ------------------------------------
+    # HEARTBEAT
+    # ------------------------------------
     async def send_heartbeat(self):
         while True:
             try:
@@ -526,10 +523,9 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             except Exception:
                 break
 
-
-    # ---------------------------
-    # DATABASE STATUS HELPERS
-    # ---------------------------
+    # ------------------------------------
+    # DB STATUS
+    # ------------------------------------
     @database_sync_to_async
     def set_user_online(self):
         status, _ = UserStatus.objects.get_or_create(user=self.user)
@@ -544,10 +540,32 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             self.user.status.last_active = timezone.now()
             self.user.status.save()
 
+    # ------------------------------------
+    # SEND CURRENT ONLINE USERS
+    # ------------------------------------
+    @database_sync_to_async
+    def get_online_users(self):
+        online_users = UserStatus.objects.filter(is_online=True).select_related("user")
+        return [
+            {
+                "id": u.user.id,
+                "name": u.user.full_name,
+                "last_active": saudi_timestamp(u.last_active)
+            }
+            for u in online_users
+        ]
 
-    # ---------------------------
-    # ONLINE/OFFLINE BROADCAST
-    # ---------------------------
+    async def send_online_users_list(self):
+        online_users = await self.get_online_users()
+
+        await self.send(text_data=json.dumps({
+            "type": "online_users",
+            "users": online_users
+        }))
+
+    # ------------------------------------
+    # BROADCAST
+    # ------------------------------------
     async def user_status_update(self, event):
         await self.send(text_data=json.dumps({
             "type": "user_status_update",
@@ -558,9 +576,9 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         }))
 
 
-    # ---------------------------
-    # EXISTING FEATURE HANDLERS
-    # ---------------------------
+    # ------------------------------------
+    # EXISTING
+    # ------------------------------------
     async def chat_list_update(self, event):
         await self.send(text_data=json.dumps({
             "type": "chat_list_update",
