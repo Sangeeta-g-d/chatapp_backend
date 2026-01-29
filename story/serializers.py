@@ -57,15 +57,21 @@ class StoryListSerializer(serializers.ModelSerializer):
         return obj.user.get_full_name()
 
     def get_profile_picture(self, obj):
-        request = self.context.get("base_url")
+        request = self.context.get('request')
         if hasattr(obj.user, 'userprofile') and obj.user.userprofile.profile_picture:
-            return f"{request}{obj.user.userprofile.profile_picture.url}"
+            pic = obj.user.userprofile.profile_picture.url
+            if request:
+                return request.build_absolute_uri(pic)
+            return pic
         return None
 
     def get_media_url(self, obj):
-        request = self.context.get("base_url")
+        request = self.context.get('request')
         if obj.media:
-            return f"{request}{obj.media.url}"
+            media_path = obj.media.url
+            if request:
+                return request.build_absolute_uri(media_path)
+            return media_path
         return None
 
     def get_created_at_ist(self, obj):
@@ -84,22 +90,23 @@ class StoryListSerializer(serializers.ModelSerializer):
     def get_viewers(self, obj):
         if not self.context.get("show_viewers"):
             return []  # Or return None if preferred
-
-        request = self.context.get("base_url")
+        request = self.context.get('request')
         viewers = obj.views.select_related('user', 'user__userprofile').all()
-        return [
-            {
+        result = []
+        for v in viewers:
+            profile_pic = None
+            if hasattr(v.user, 'userprofile') and v.user.userprofile.profile_picture:
+                pic_path = v.user.userprofile.profile_picture.url
+                profile_pic = request.build_absolute_uri(pic_path) if request else pic_path
+
+            result.append({
                 "user_id": v.user.id,
                 "full_name": v.user.get_full_name(),
-                "profile_picture": (
-                    f"{request}{v.user.userprofile.profile_picture.url}"
-                    if hasattr(v.user, 'userprofile') and v.user.userprofile.profile_picture
-                    else None
-                ),
+                "profile_picture": profile_pic,
                 "viewed_at_ist": v.viewed_at.astimezone(IST).strftime('%Y-%m-%d %H:%M:%S')
-            }
-            for v in viewers
-        ]
+            })
+
+        return result
 
 class GroupedStorySerializer(serializers.Serializer):
     user_id = serializers.IntegerField()

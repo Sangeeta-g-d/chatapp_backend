@@ -49,6 +49,7 @@ class StoryListAPIView(APIView):
 
         context = {
             "base_url": base_url,
+            "request": request,
             "viewed_story_ids": viewed_story_ids,
             "show_viewers": False
         }
@@ -68,15 +69,15 @@ class StoryListAPIView(APIView):
             for user_id, stories in group_dict.items():
                 user_obj = stories[0].user
                 story_serializer = StoryListSerializer(stories, many=True, context=context)
+                profile_picture = None
+                if hasattr(user_obj, 'userprofile') and user_obj.userprofile.profile_picture:
+                    pic_path = user_obj.userprofile.profile_picture.url
+                    profile_picture = request.build_absolute_uri(pic_path)
+
                 grouped_serialized.append({
-                    
                     "user_id": user_obj.id,
                     "username": user_obj.get_full_name(),
-                    "profile_picture": (
-                        f"{base_url}{user_obj.userprofile.profile_picture.url}"
-                        if hasattr(user_obj, 'userprofile') and user_obj.userprofile.profile_picture
-                        else None
-                    ),
+                    "profile_picture": profile_picture,
                     "stories": story_serializer.data
                 })
             return grouped_serialized
